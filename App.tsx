@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { EventLog } from './components/EventLog';
@@ -34,8 +35,8 @@ function App() {
   }, [gameState]);
 
   const handleSetupComplete = (name: string, gender: '男'|'女', selectedTags: string[]) => {
-      const trainer = createRuntimeCharacter(CHARACTERS['player_template'], 'p1', name, gender, selectedTags);
-      const umaKeys = ['nice_nature', 'tokai_teio', 'mayano_top_gun'];
+      const trainer = createRuntimeCharacter(CHARACTERS['训练员'], 'p1', name, gender, selectedTags);
+      const umaKeys = ['优秀素质', '东海帝王', '摩耶重炮', '米浴'];
       const randomKey = umaKeys[Math.floor(Math.random() * umaKeys.length)];
       const uma = createRuntimeCharacter(CHARACTERS[randomKey], 'c1');
 
@@ -62,29 +63,28 @@ function App() {
         if (prev.pendingEvents.length === 0) return prev;
 
         const currentEventItem = prev.pendingEvents[0];
-        const { characterId, event } = currentEventItem;
+        const { characterId, event, variables } = currentEventItem;
         const option = event.选项组?.[optionIndex];
         if (!option) return prev;
 
         const charIndex = prev.characters.findIndex(c => c.instanceId === characterId);
         if (charIndex === -1) return prev;
 
-        const newCharacters = [...prev.characters];
-        const char = JSON.parse(JSON.stringify(newCharacters[charIndex]));
-        newCharacters[charIndex] = char;
+        // Clone characters completely because executeAction might modify other characters via variables
+        const newCharacters = JSON.parse(JSON.stringify(prev.characters)) as RuntimeCharacter[];
+        const char = newCharacters[charIndex];
         
         // 1. 执行选项操作
-        const { logs: resultLogs } = executeAction(option.操作指令, char, prev.currentTurn);
+        const { logs: resultLogs } = executeAction(option.操作指令, char, prev.currentTurn, newCharacters, variables);
 
         // 2. 核心增强：执行选项后的逻辑分支 (Branching)
-        // Pass all characters to checkCondition for cross-character logic
         let extraLogs: string[] = [];
         let jumpId: string | undefined = undefined;
         if (event.分支组) {
             for (const branch of event.分支组) {
-                // 将选项序号(从1开始)传入
-                if (checkCondition(branch.判别式, char, optionIndex + 1, prev.characters)) {
-                    const bRes = executeAction(branch.操作指令, char, prev.currentTurn);
+                // UPDATE: Passed prev.currentTurn to checkCondition
+                if (checkCondition(branch.判别式, char, prev.currentTurn, optionIndex + 1, newCharacters, variables)) {
+                    const bRes = executeAction(branch.操作指令, char, prev.currentTurn, newCharacters, variables);
                     extraLogs.push(...bRes.logs);
                     if (bRes.nextEventId) jumpId = bRes.nextEventId;
                     if (branch.跳转事件ID) jumpId = branch.跳转事件ID;
@@ -98,11 +98,14 @@ function App() {
         const effectHtml = combinedEffects.length > 0 
             ? `<div class='mt-1 text-xs font-bold text-gray-500'>(${combinedEffects.join(', ')})</div>`
             : "";
+        
+        // UPDATE: Passed prev.currentTurn to parseText
+        const parsedDisplayText = parseText(displayText, char, prev.currentTurn, newCharacters, variables);
 
         newLogs.push({
             turn: prev.currentTurn,
             characterName: char.名称,
-            text: `选择了【${displayText}】${effectHtml}`,
+            text: `选择了【${parsedDisplayText}】${effectHtml}`,
             type: 'choice'
         });
 
@@ -110,7 +113,11 @@ function App() {
         if (jumpId) {
             const nextEvent = EVENTS.find(e => e.id === jumpId);
             if (nextEvent) {
-                remainingEvents = [{ characterId, event: nextEvent }, ...remainingEvents];
+                remainingEvents = [{ 
+                    characterId, 
+                    event: nextEvent,
+                    variables: variables 
+                }, ...remainingEvents];
             }
         }
 
@@ -204,13 +211,13 @@ function App() {
     ? gameState.characters.find(c => c.instanceId === currentPendingEvent.characterId)
     : undefined;
 
-  // Prepare text for modal to ensure all tokens are replaced correctly
+  // UPDATE: Passed gameState.currentTurn to parseText
   const parsedModalText = currentPendingEvent && currentPendingChar
-    ? parseText(currentPendingEvent.event.正文, currentPendingChar, gameState.characters)
+    ? parseText(currentPendingEvent.event.正文, currentPendingChar, gameState.currentTurn, gameState.characters, currentPendingEvent.variables)
     : undefined;
 
   const parsedModalTitle = currentPendingEvent && currentPendingChar && currentPendingEvent.event.标题
-    ? parseText(currentPendingEvent.event.标题, currentPendingChar, gameState.characters)
+    ? parseText(currentPendingEvent.event.标题, currentPendingChar, gameState.currentTurn, gameState.characters, currentPendingEvent.variables)
     : undefined;
 
   const hasPendingActions = gameState.currentTurnQueue.length > 0;
@@ -221,7 +228,7 @@ function App() {
         <div className="flex-1 flex flex-col h-full relative">
             <div className="p-4 border-b bg-white shadow-sm flex justify-between items-center z-20">
                 <h1 className="text-xl font-bold text-gray-800">怪文书模拟器</h1>
-                <div className="text-xs text-gray-500">Ver 0.6.1</div>
+                <div className="text-xs text-gray-500">Ver 0.6.3</div>
             </div>
             <EventLog logs={gameState.logs} />
             <div className="h-24"></div>

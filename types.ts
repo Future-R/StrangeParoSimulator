@@ -105,6 +105,7 @@ export interface GameEvent {
   可触发次数: number;
   标签组?: string[];
   触发条件: string; 
+  预操作指令?: string; // New: 触发前立即执行的指令
   标题?: string;
   正文: string; 
   操作指令?: string; 
@@ -125,6 +126,7 @@ export interface LogEntry {
 export interface PendingEventItem {
   characterId: string;
   event: GameEvent;
+  variables?: Record<string, any>; // New: 临时变量存储 (Key -> Value/InstanceID)
 }
 
 // 全局游戏状态

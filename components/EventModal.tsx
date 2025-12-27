@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { GameEvent } from '../types';
 
@@ -5,20 +6,25 @@ interface EventModalProps {
   isOpen: boolean;
   event: GameEvent | undefined;
   characterName: string;
-  parsedTitle?: string; // New
-  parsedText?: string;  // New
+  parsedTitle?: string; 
+  parsedText?: string;  
   onSelectOption: (optionIndex: number, displayText: string) => void;
 }
 
 export const EventModal: React.FC<EventModalProps> = ({ isOpen, event, characterName, parsedTitle, parsedText, onSelectOption }) => {
   if (!isOpen || !event || !event.选项组) return null;
 
+  // Ensure default fallback uses parsing logic or simple replacement, and convert newlines to <br/>
+  const titleContent = parsedTitle || event.标题 || '事件抉择';
+  const rawBodyContent = parsedText || event.正文.replace(/{当前角色\.名称}/g, characterName);
+  const bodyContent = rawBodyContent.replace(/\n/g, '<br/>');
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 backdrop-blur-sm transition-opacity duration-300">
       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden animate-jelly border-4 border-green-100 transform">
         <div className="bg-green-600 p-4">
             <h3 className="text-white font-bold text-lg text-center tracking-wider">
-                {parsedTitle || event.标题 || '事件抉择'}
+                {titleContent}
             </h3>
         </div>
         
@@ -28,10 +34,7 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, event, character
                 {characterName} 遭遇了事件：
             </div>
             <div className="text-gray-800 text-lg mb-8 leading-relaxed font-medium">
-                {/* Use parsed text if available to show resolved names/titles correctly */}
-                <div dangerouslySetInnerHTML={{ 
-                    __html: parsedText || event.正文.replace(/{当前角色\.名称}/g, characterName) 
-                }}></div>
+                <div dangerouslySetInnerHTML={{ __html: bodyContent }}></div>
             </div>
             
             <div className="space-y-3">

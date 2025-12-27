@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef } from 'react';
 import { LogEntry } from '../types';
 
@@ -46,7 +47,7 @@ export const EventLog: React.FC<EventLogProps> = ({ logs }) => {
                                     {log.characterName}
                                 </div>
                              )}
-                             <div className="text-sm md:text-base leading-relaxed" dangerouslySetInnerHTML={{ __html: log.text }}></div>
+                             <div className="text-sm md:text-base leading-relaxed" dangerouslySetInnerHTML={{ __html: log.text.replace(/\n/g, '<br/>') }}></div>
                         </div>
                     )}
                 </div>
