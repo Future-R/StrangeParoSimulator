@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>马娘人生模拟器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: "Source Han Sans CN", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+            background-color: #f0fdf4; /* Light green bg */
+        }
+        /* Hide scrollbar for Chrome, Safari and Opera */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        /* Hide scrollbar for IE, Edge and Firefox */
+        .no-scrollbar {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+
+        /* 
+           Optimized Pop Animation 
+           Hardware accelerated and snappier.
+        */
+        @keyframes jelly-pop {
+            0% { 
+                transform: scale(0.95); 
+                opacity: 0; 
+            }
+            60% { 
+                transform: scale(1.02); 
+                opacity: 1; 
+            }
+            100% { 
+                transform: scale(1); 
+                opacity: 1; 
+            }
+        }
+        .animate-jelly {
+            will-change: transform, opacity;
+            animation: jelly-pop 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        }
+
+        /* Fade in for general elements */
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            will-change: transform, opacity;
+            animation: fade-in 0.2s ease-out forwards;
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+    <div id="root"></div>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
