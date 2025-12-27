@@ -12,12 +12,14 @@ interface EventModalProps {
 }
 
 export const EventModal: React.FC<EventModalProps> = ({ isOpen, event, characterName, parsedTitle, parsedText, onSelectOption }) => {
-  if (!isOpen || !event || !event.选项组) return null;
+  if (!isOpen || !event) return null;
 
   // Ensure default fallback uses parsing logic or simple replacement, and convert newlines to <br/>
   const titleContent = parsedTitle || event.标题 || '事件抉择';
   const rawBodyContent = parsedText || event.正文.replace(/{当前角色\.名称}/g, characterName);
   const bodyContent = rawBodyContent.replace(/\n/g, '<br/>');
+
+  const hasOptions = event.选项组 && event.选项组.length > 0;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 backdrop-blur-sm transition-opacity duration-300">
@@ -38,22 +40,31 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, event, character
             </div>
             
             <div className="space-y-3">
-                {event.选项组.map((opt, idx) => (
+                {hasOptions ? (
+                    event.选项组!.map((opt, idx) => (
+                        <button
+                            key={idx}
+                            onClick={() => onSelectOption(idx, opt.显示文本)}
+                            className="w-full text-left p-4 rounded-xl border-2 border-gray-100 hover:border-green-500 hover:bg-green-50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 group shadow-sm"
+                        >
+                            <div className="flex items-center">
+                                <span className="bg-gray-200 group-hover:bg-green-500 group-hover:text-white text-gray-600 w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold mr-3 transition-colors">
+                                    {idx + 1}
+                                </span>
+                                <span className="font-bold text-gray-700 group-hover:text-green-800">
+                                    {opt.显示文本}
+                                </span>
+                            </div>
+                        </button>
+                    ))
+                ) : (
                     <button
-                        key={idx}
-                        onClick={() => onSelectOption(idx, opt.显示文本)}
-                        className="w-full text-left p-4 rounded-xl border-2 border-gray-100 hover:border-green-500 hover:bg-green-50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 group shadow-sm"
+                        onClick={() => onSelectOption(-1, '继续')}
+                        className="w-full p-4 rounded-xl bg-green-500 text-white font-bold hover:bg-green-600 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 shadow-md"
                     >
-                        <div className="flex items-center">
-                            <span className="bg-gray-200 group-hover:bg-green-500 group-hover:text-white text-gray-600 w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold mr-3 transition-colors">
-                                {idx + 1}
-                            </span>
-                            <span className="font-bold text-gray-700 group-hover:text-green-800">
-                                {opt.显示文本}
-                            </span>
-                        </div>
+                        继续
                     </button>
-                ))}
+                )}
             </div>
         </div>
       </div>

@@ -77,6 +77,10 @@ export const checkCondition = (condition: string, char: RuntimeCharacter, turn: 
   const turnInfo = getTurnInfo(turn);
 
   return subConditions.every(cond => {
+    // 0. 基础布尔值支持 (Fix for Branching fallback)
+    if (cond === 'true') return true;
+    if (cond === 'false') return false;
+
     // 1. 选项序号判别 (用于分支组)
     if (cond.startsWith('已选序号')) {
         const match = cond.match(/已选序号\s*==\s*(\d+)/);
@@ -171,8 +175,9 @@ export const checkCondition = (condition: string, char: RuntimeCharacter, turn: 
     }
 
     // 5. 属性检查
+    // FIX: Updated regex to support Chinese characters ([\w\u4e00-\u9fa5]+)
     if (propPath.includes('属性.')) {
-      const match = propPath.match(/属性\.(\w+)\s*([>=<]+|==)\s*(\d+)/);
+      const match = propPath.match(/属性\.([\w\u4e00-\u9fa5]+)\s*([>=<]+|==)\s*(\d+)/);
       if (match) {
         const attrName = match[1];
         const op = match[2];
@@ -190,8 +195,9 @@ export const checkCondition = (condition: string, char: RuntimeCharacter, turn: 
     }
 
     // 6. 关系检查
+    // FIX: Updated regex to support Chinese characters (e.g., 友情, 爱情)
     if (propPath.includes('关系.玩家.')) {
-        const match = propPath.match(/关系\.玩家\.(\w+)\s*([>=<]+|==)\s*(\d+)/);
+        const match = propPath.match(/关系\.玩家\.([\w\u4e00-\u9fa5]+)\s*([>=<]+|==)\s*(\d+)/);
         if (match) {
             const type = match[1] as '友情' | '爱情';
             const op = match[2];
@@ -222,8 +228,14 @@ export const checkCondition = (condition: string, char: RuntimeCharacter, turn: 
     }
 
     if (propPath.includes('模板ID')) {
-        const match = propPath.match(/模板ID\s*==\s*"([^"]+)"/);
-        if (match) return subject.templateId === match[1];
+        // FIX: Support !=
+        const match = propPath.match(/模板ID\s*([!=]=)\s*"([^"]+)"/);
+        if (match) {
+            const op = match[1];
+            const val = match[2];
+            if (op === '==') return subject.templateId === val;
+            if (op === '!=') return subject.templateId !== val;
+        }
     }
 
     return false;
@@ -253,8 +265,9 @@ export const parseText = (text: string, char: RuntimeCharacter, turn: number, al
   }
 
   // 2. 基础替换
+  // FIX: Updated regex to support Chinese characters in attribute names
   result = result.replace(/{当前角色\.名称}/g, char.名称);
-  result = result.replace(/{当前角色\.属性\.(\w+)}/g, (_, attr) => {
+  result = result.replace(/{当前角色\.属性\.([\w\u4e00-\u9fa5]+)}/g, (_, attr) => {
     // @ts-ignore
     return (char.通用属性[attr] ?? char.竞赛属性[attr] ?? 0).toString();
   });
@@ -327,7 +340,6 @@ export const executeAction = (actionStr: string, char: RuntimeCharacter, turn: n
 
     // 1. 设置变量 (New)
     // Syntax: 设置变量 角色 [Key] = 获取随机队友()
-    // FIX: Using \S instead of \w to support Chinese characters in variable names
     if (action.startsWith('设置变量')) {
         const match = action.match(/设置变量\s+(\S+)\s+(\S+)\s*=\s*(.+)/);
         if (match) {
@@ -337,7 +349,6 @@ export const executeAction = (actionStr: string, char: RuntimeCharacter, turn: n
                 if (others.length > 0) {
                     const randomMate = others[Math.floor(Math.random() * others.length)];
                     currentVariables[key] = randomMate.instanceId;
-                    // Log hidden or debug?
                 }
             }
         }
@@ -367,11 +378,15 @@ export const executeAction = (actionStr: string, char: RuntimeCharacter, turn: n
         if (args.length === 4) {
                const type = args[0] as '友情' | '爱情';
                const subject = resolveTargetCharacter(args[1], char, allChars, currentVariables);
-               let targetKey = 'p1'; // Default
+               const target = resolveTargetCharacter(args[2], char, allChars, currentVariables);
                const val = parseInt(args[3]);
-               if (subject) {
-                   if (!subject.关系列表[targetKey]) subject.关系列表[targetKey] = { 友情: 0, 爱情: 0 };
-                   subject.关系列表[targetKey][type] = Math.max(0, Math.min(100, subject.关系列表[targetKey][type] + val));
+               
+               if (subject && target) {
+                   const targetId = target.instanceId;
+                   if (!subject.关系列表[targetId]) subject.关系列表[targetId] = { 友情: 0, 爱情: 0 };
+                   subject.关系列表[targetId][type] = Math.max(0, Math.min(100, subject.关系列表[targetId][type] + val));
+                   
+                   logs.push(`${subject.名称} 与 ${target.名称} 关系 ${val}`);
                }
                return; 
         }
@@ -474,38 +489,18 @@ export const executeAction = (actionStr: string, char: RuntimeCharacter, turn: n
   return { logs, nextEventId, newVariables: currentVariables };
 };
 
-// ===========================
-// 被动效果处理 (Passive Effects)
-// ===========================
 const applyPassiveEffects = (char: RuntimeCharacter) => {
     // 好色: 每回合爱欲+2
     if (char.标签组.some(t => t.templateId === '好色')) {
         char.通用属性.爱欲 = Math.min(100, char.通用属性.爱欲 + 2);
-    }
-    // 小祖宗: 每回合心情-2
-    if (char.标签组.some(t => t.templateId === '小祖宗')) {
-        char.通用属性.心情 = Math.max(0, char.通用属性.心情 - 2);
     }
     // 社畜: 精力+2, 心情-1
     if (char.标签组.some(t => t.templateId === '社畜')) {
         char.通用属性.精力 = Math.min(100, char.通用属性.精力 + 2);
         char.通用属性.心情 = Math.max(0, char.通用属性.心情 - 1);
     }
-    // 受虐狂 (原抖M): 心情-1, 爱欲+1
-    if (char.标签组.some(t => t.templateId === '受虐狂')) {
-        char.通用属性.爱欲 = Math.min(100, char.通用属性.爱欲 + 1);
-        char.通用属性.心情 = Math.max(0, char.通用属性.心情 - 1);
-    }
-    // 施虐狂 (原抖S): 心情+1, 爱欲+1 (愉悦犯)
-    if (char.标签组.some(t => t.templateId === '施虐狂')) {
-        char.通用属性.爱欲 = Math.min(100, char.通用属性.爱欲 + 1);
-        char.通用属性.心情 = Math.min(100, char.通用属性.心情 + 1);
-    }
+    // Removed old Little Ancestor passive (-2 mood per turn)
 };
-
-// ===========================
-// 主逻辑 (Core Logic)
-// ===========================
 
 export const triggerCharacterEvent = (state: GameState, instanceId: string): GameState => {
     const charIndex = state.characters.findIndex(c => c.instanceId === instanceId);
@@ -540,13 +535,25 @@ export const triggerCharacterEvent = (state: GameState, instanceId: string): Gam
         return { ...state, characters: newCharacters, logs: newLogs };
     }
 
-    const totalWeight = validEvents.reduce((sum, e) => sum + e.权重, 0);
+    // New: Weighted Selection with Little Ancestor logic
+    const isAncestor = newChar.标签组.some(t => t.templateId === '小祖宗');
+    const weightedEvents = validEvents.map(e => {
+        let weight = e.权重;
+        // Little Ancestor: Double weight for mood down events
+        if (isAncestor && e.标签组 && e.标签组.includes('心情下降')) {
+            weight *= 2;
+        }
+        return { event: e, weight };
+    });
+
+    const totalWeight = weightedEvents.reduce((sum, item) => sum + item.weight, 0);
     let random = Math.random() * totalWeight;
-    let selectedEvent = validEvents[validEvents.length - 1];
-    for (const e of validEvents) {
-        random -= e.权重;
+    let selectedEvent = weightedEvents[weightedEvents.length - 1].event;
+    
+    for (const item of weightedEvents) {
+        random -= item.weight;
         if (random <= 0) {
-            selectedEvent = e;
+            selectedEvent = item.event;
             break;
         }
     }
@@ -607,12 +614,47 @@ export const triggerCharacterEvent = (state: GameState, instanceId: string): Gam
             variables: eventVariables 
         });
     } else if (jumpId) {
+        // --- FIX: Log the Jumped Event immediately ---
         const nextEvent = EVENTS.find(e => e.id === jumpId);
         if (nextEvent) {
+             // We need to execute nextEvent's pre-actions to get its variables for parsing
+             let nextVariables = { ...eventVariables };
+             if (nextEvent.预操作指令) {
+                 const preRes = executeAction(nextEvent.预操作指令, newChar, state.currentTurn, newCharacters, nextVariables);
+                 nextVariables = preRes.newVariables || nextVariables;
+             }
+             
+             // We also execute Main Actions for the jump target immediately (consistent with App.tsx jump logic)
+             // This ensures if it's a "Continue" event, effects are applied.
+             // If it has options, App.tsx will handle the choice, but we still apply initial effects here?
+             // App.tsx applies effects when option is chosen. 
+             // If nextEvent has NO options, it's just text. We should apply effects now.
+             // If nextEvent HAS options, we should NOT apply effects now.
+             
+             let jumpEffectHtml = '';
+             const hasOptions = nextEvent.选项组 && nextEvent.选项组.length > 0;
+             
+             if (!hasOptions && nextEvent.操作指令) {
+                  const actRes = executeAction(nextEvent.操作指令, newChar, state.currentTurn, newCharacters, nextVariables);
+                  if (actRes.logs.length > 0) {
+                      jumpEffectHtml = `<div class='mt-2 pt-2 border-t border-dashed border-gray-200 text-xs text-gray-400 font-bold'>${actRes.logs.join('  ')}</div>`;
+                  }
+             }
+             
+             const nextParsedText = parseText(nextEvent.正文, newChar, state.currentTurn, newCharacters, nextVariables) + jumpEffectHtml;
+             
+             newLogs.push({
+                turn: state.currentTurn,
+                characterName: newChar.名称,
+                text: nextParsedText,
+                type: 'event',
+                isImportant: !!nextEvent.标题
+            });
+
             pendingEvents.unshift({ 
                 characterId: instanceId, 
                 event: nextEvent,
-                variables: eventVariables 
+                variables: nextVariables 
             });
         }
     }

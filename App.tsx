@@ -64,28 +64,48 @@ function App() {
 
         const currentEventItem = prev.pendingEvents[0];
         const { characterId, event, variables } = currentEventItem;
-        const option = event.选项组?.[optionIndex];
-        if (!option) return prev;
-
-        const charIndex = prev.characters.findIndex(c => c.instanceId === characterId);
-        if (charIndex === -1) return prev;
-
-        // Clone characters completely because executeAction might modify other characters via variables
-        const newCharacters = JSON.parse(JSON.stringify(prev.characters)) as RuntimeCharacter[];
-        const char = newCharacters[charIndex];
         
-        // 1. 执行选项操作
-        const { logs: resultLogs } = executeAction(option.操作指令, char, prev.currentTurn, newCharacters, variables);
+        let newCharacters = JSON.parse(JSON.stringify(prev.characters)) as RuntimeCharacter[];
+        let char = newCharacters.find(c => c.instanceId === characterId);
+        
+        if (!char) return prev;
 
-        // 2. 核心增强：执行选项后的逻辑分支 (Branching)
-        let extraLogs: string[] = [];
+        let resultLogs: string[] = [];
         let jumpId: string | undefined = undefined;
-        if (event.分支组) {
-            for (const branch of event.分支组) {
-                // UPDATE: Passed prev.currentTurn to checkCondition
-                if (checkCondition(branch.判别式, char, prev.currentTurn, optionIndex + 1, newCharacters, variables)) {
+
+        // Special handling for "Continue" button (optionIndex === -1)
+        if (optionIndex === -1) {
+            // No action needed for continue, just proceed to remove event or check branches
+        } else {
+             const option = event.选项组?.[optionIndex];
+             if (option) {
+                // 1. 执行选项操作
+                const res = executeAction(option.操作指令, char, prev.currentTurn, newCharacters, variables);
+                resultLogs = res.logs;
+                if (res.nextEventId) jumpId = res.nextEventId;
+
+                // 2. 选项分支
+                if (event.分支组) {
+                    for (const branch of event.分支组) {
+                        if (checkCondition(branch.判别式, char, prev.currentTurn, optionIndex + 1, newCharacters, variables)) {
+                            const bRes = executeAction(branch.操作指令, char, prev.currentTurn, newCharacters, variables);
+                            resultLogs.push(...bRes.logs);
+                            if (bRes.nextEventId) jumpId = bRes.nextEventId;
+                            if (branch.跳转事件ID) jumpId = branch.跳转事件ID;
+                            break;
+                        }
+                    }
+                }
+             }
+        }
+        
+        // 3. 自动分支 (For events without options, or if we want to check branch conditions regardless of option)
+        // Usually used for "Exhaustion" events that might chain
+        if (optionIndex === -1 && event.分支组) {
+             for (const branch of event.分支组) {
+                if (checkCondition(branch.判别式, char, prev.currentTurn, undefined, newCharacters, variables)) {
                     const bRes = executeAction(branch.操作指令, char, prev.currentTurn, newCharacters, variables);
-                    extraLogs.push(...bRes.logs);
+                    resultLogs.push(...bRes.logs);
                     if (bRes.nextEventId) jumpId = bRes.nextEventId;
                     if (branch.跳转事件ID) jumpId = branch.跳转事件ID;
                     break;
@@ -94,29 +114,61 @@ function App() {
         }
 
         const newLogs = [...prev.logs];
-        const combinedEffects = [...resultLogs, ...extraLogs];
+        const combinedEffects = [...resultLogs];
         const effectHtml = combinedEffects.length > 0 
             ? `<div class='mt-1 text-xs font-bold text-gray-500'>(${combinedEffects.join(', ')})</div>`
             : "";
         
-        // UPDATE: Passed prev.currentTurn to parseText
-        const parsedDisplayText = parseText(displayText, char, prev.currentTurn, newCharacters, variables);
-
-        newLogs.push({
-            turn: prev.currentTurn,
-            characterName: char.名称,
-            text: `选择了【${parsedDisplayText}】${effectHtml}`,
-            type: 'choice'
-        });
+        if (optionIndex !== -1) {
+            const parsedDisplayText = parseText(displayText, char, prev.currentTurn, newCharacters, variables);
+            newLogs.push({
+                turn: prev.currentTurn,
+                characterName: char.名称,
+                text: `选择了【${parsedDisplayText}】${effectHtml}`,
+                type: 'choice'
+            });
+        }
 
         let remainingEvents = prev.pendingEvents.slice(1);
+        
+        // --- JUMP LOGIC with TEXT LOGGING ---
         if (jumpId) {
             const nextEvent = EVENTS.find(e => e.id === jumpId);
             if (nextEvent) {
+                // Determine Character for next event (usually same, but could be different if variables supported it, for now assume same)
+                const nextChar = char; 
+
+                // Execute Pre-actions immediately
+                let nextVariables = { ...variables };
+                if (nextEvent.预操作指令) {
+                     const preRes = executeAction(nextEvent.预操作指令, nextChar, prev.currentTurn, newCharacters, nextVariables);
+                     nextVariables = preRes.newVariables || nextVariables;
+                }
+
+                // Execute Main Actions immediately (since we are jumping to it, it 'happens' now)
+                let jumpEffectHtml = '';
+                if (nextEvent.操作指令) {
+                    const actRes = executeAction(nextEvent.操作指令, nextChar, prev.currentTurn, newCharacters, nextVariables);
+                    if (actRes.logs.length > 0) {
+                        jumpEffectHtml = `<div class='mt-2 pt-2 border-t border-dashed border-gray-200 text-xs text-gray-400 font-bold'>${actRes.logs.join('  ')}</div>`;
+                    }
+                }
+
+                // Log the Text Immediately
+                const parsedText = parseText(nextEvent.正文, nextChar, prev.currentTurn, newCharacters, nextVariables) + jumpEffectHtml;
+                newLogs.push({
+                    turn: prev.currentTurn,
+                    characterName: nextChar.名称,
+                    text: parsedText,
+                    type: 'event',
+                    isImportant: !!nextEvent.标题
+                });
+
+                // Add to Pending Events (so user can interact or click continue)
                 remainingEvents = [{ 
                     characterId, 
                     event: nextEvent,
-                    variables: variables 
+                    variables: nextVariables 
                 }, ...remainingEvents];
             }
         }
