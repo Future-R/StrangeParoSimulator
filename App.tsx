@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { EventLog } from './components/EventLog';
@@ -9,7 +8,7 @@ import { GameState, RuntimeCharacter, LogEntry } from './types';
 import { createRuntimeCharacter, triggerCharacterEvent, executeAction, checkCondition, getTurnDate, parseText } from './services/engine';
 import { CHARACTERS, EVENTS } from './constants';
 
-const INITIAL_MAX_TURNS = 72;
+const INITIAL_MAX_TURNS = 71;
 
 const createInitialState = (): GameState => {
     return {
@@ -280,7 +279,7 @@ function App() {
         <div className="flex-1 flex flex-col h-full relative">
             <div className="p-4 border-b bg-white shadow-sm flex justify-between items-center z-20">
                 <h1 className="text-xl font-bold text-gray-800">怪文书模拟器</h1>
-                <div className="text-xs text-gray-500">Ver 0.6.3</div>
+                <div className="text-xs text-gray-500">Ver 0.6.4</div>
             </div>
             <EventLog logs={gameState.logs} />
             <div className="h-24"></div>
