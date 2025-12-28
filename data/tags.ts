@@ -111,7 +111,7 @@ export const TAGS: Record<string, TagTemplate> = {
     显示名: '厌男',
     描述: '讨厌男性。',
     稀有度: 2,
-    互斥标签: ['好色'],
+    互斥标签: [''],
     人类可用: false,
     马娘可用: true,
     开局可选: true
@@ -139,7 +139,7 @@ export const TAGS: Record<string, TagTemplate> = {
   '歌手': {
     id: '歌手',
     显示名: '歌手',
-    描述: '拥有宛如演歌歌手般的浑厚嗓音？\n或者只是单纯喜欢唱。',
+    描述: '去卡拉OK最后一首要点情歌王。',
     稀有度: 2, // R
     互斥标签: [],
     人类可用: true,
@@ -154,7 +154,7 @@ export const TAGS: Record<string, TagTemplate> = {
     互斥标签: ['贫穷'],
     人类可用: true,
     马娘可用: true,
-    开局可选: true
+    开局可选: false
   },
   // --- 能力/状态 ---
   '天才': {
