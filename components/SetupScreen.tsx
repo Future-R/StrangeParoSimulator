@@ -16,10 +16,36 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
   const [blockedTags, setBlockedTags] = useState<string[]>([]);
 
   useEffect(() => {
-    // Randomly select 10 tags
     const allTags = getAvailableStartTags();
-    const shuffled = [...allTags].sort(() => 0.5 - Math.random());
-    setAvailableTags(shuffled.slice(0, 10));
+    const selected: TagTemplate[] = [];
+    const pool = [...allTags];
+    
+    // Weighted selection logic
+    const TARGET_COUNT = 10;
+    
+    for (let i = 0; i < TARGET_COUNT && pool.length > 0; i++) {
+        // Calculate total weight (Inverse of Rarity: lower rarity = higher weight)
+        // Weight = 5 - Rarity (e.g., R1=4, R2=3, R3=2, R4=1)
+        const totalWeight = pool.reduce((sum, t) => sum + (5 - t.稀有度), 0);
+        let r = Math.random() * totalWeight;
+        
+        let foundIndex = -1;
+        for (let j = 0; j < pool.length; j++) {
+            r -= (5 - pool[j].稀有度);
+            if (r <= 0) {
+                foundIndex = j;
+                break;
+            }
+        }
+        
+        // Fallback for rounding errors
+        if (foundIndex === -1) foundIndex = pool.length - 1;
+        
+        selected.push(pool[foundIndex]);
+        pool.splice(foundIndex, 1);
+    }
+
+    setAvailableTags(selected);
   }, []);
 
   useEffect(() => {
@@ -56,6 +82,25 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
     }
 
     onComplete(name, finalGender, selectedTags);
+  };
+
+  // Helper for tag colors in setup screen
+  const getTagColors = (tag: TagTemplate, isSelected: boolean) => {
+      if (isSelected) return { title: 'text-orange-600', border: 'border-orange-400', bg: 'bg-yellow-50' };
+      
+      switch (tag.稀有度) {
+          case 2: return { title: 'text-slate-700', border: 'border-gray-200', bg: 'bg-slate-50' }; // Silver
+          case 3: return { title: 'text-yellow-700', border: 'border-yellow-200', bg: 'bg-yellow-50' }; // Gold
+          case 4: return { title: 'text-purple-600', border: 'border-purple-200', bg: 'bg-purple-50' }; // Diamond
+          default: return { title: 'text-zinc-700', border: 'border-gray-200', bg: 'bg-white' }; // Iron
+      }
+  };
+
+  const getRarityBadge = (rarity: number) => {
+      if (rarity === 2) return <span className="text-xs bg-slate-100 text-slate-600 px-1.5 rounded border border-slate-200">R</span>;
+      if (rarity === 3) return <span className="text-xs bg-yellow-100 text-yellow-700 px-1.5 rounded border border-yellow-200">SR</span>;
+      if (rarity >= 4) return <span className="text-xs bg-purple-100 text-purple-600 px-1.5 rounded border border-purple-200 font-bold">SSR</span>;
+      return <span className="text-xs bg-gray-100 text-gray-500 px-1.5 rounded border border-gray-200">N</span>;
   };
 
   return (
@@ -161,6 +206,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
                 {availableTags.map(tag => {
                     const isSelected = selectedTags.includes(tag.id);
                     const isBlocked = blockedTags.includes(tag.id) && !isSelected;
+                    const colors = getTagColors(tag, isSelected);
 
                     return (
                         <button
@@ -170,19 +216,20 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
                         className={`
                             relative p-3 rounded-xl border-2 text-left transition-all duration-200 flex items-start h-full
                             ${isSelected 
-                                ? 'bg-yellow-50 border-orange-400 shadow-md transform scale-[1.01]' 
+                                ? 'shadow-md transform scale-[1.01]' 
                                 : isBlocked
-                                    ? 'bg-gray-100 border-gray-200 opacity-60 cursor-not-allowed grayscale'
-                                    : 'bg-white border-gray-200 hover:border-green-400 hover:shadow-sm'
+                                    ? 'opacity-60 cursor-not-allowed grayscale'
+                                    : 'hover:border-green-400 hover:shadow-sm'
                             }
+                            ${colors.bg} ${colors.border}
                         `}
                         >
                         <div className="w-full">
                             <div className="flex justify-between items-center mb-1">
-                                <span className={`font-bold text-base ${isSelected ? 'text-orange-600' : 'text-gray-700'}`}>
+                                <span className={`font-bold text-base ${colors.title}`}>
                                     {tag.显示名}
                                 </span>
-                                {tag.稀有度 >= 3 && <span className="text-xs bg-yellow-100 text-yellow-700 px-1.5 rounded border border-yellow-200">R</span>}
+                                {getRarityBadge(tag.稀有度)}
                             </div>
                             <div className="text-xs text-gray-500 leading-snug">
                                 {tag.描述}

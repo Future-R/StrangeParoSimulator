@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef } from 'react';
 import { LogEntry } from '../types';
 
@@ -14,7 +13,8 @@ export const EventLog: React.FC<EventLogProps> = ({ logs }) => {
   }, [logs]);
 
   return (
-    <div className="flex-1 bg-gray-100 h-screen overflow-y-auto p-4 pb-32">
+    // Changed h-screen to h-full to fit within flex containers correctly
+    <div className="flex-1 bg-gray-100 h-full overflow-y-auto p-4 md:p-6 pb-24 md:pb-32 w-full">
       <div className="max-w-3xl mx-auto space-y-4">
         {logs.map((log, idx) => {
             const isSystem = log.type === 'system';
@@ -35,7 +35,7 @@ export const EventLog: React.FC<EventLogProps> = ({ logs }) => {
                          </div>
                     ) : (
                         <div className={`
-                            max-w-[90%] rounded-2xl p-4 shadow-sm border
+                            max-w-[90%] md:max-w-[85%] rounded-2xl p-3 md:p-4 shadow-sm border
                             ${isChoice 
                                 ? 'bg-yellow-50 border-yellow-200 text-gray-700 rounded-tr-none' 
                                 : 'bg-white border-gray-200 text-gray-800 rounded-tl-none'

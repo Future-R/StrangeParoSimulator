@@ -1,14 +1,14 @@
 import React from 'react';
-import { RuntimeCharacter, RuntimeTag } from '../types';
+import { RuntimeCharacter, RuntimeTag, TagTemplate } from '../types';
 import { TAGS } from '../constants';
 
 interface SidebarProps {
   characters: RuntimeCharacter[];
+  onTagClick: (tag: TagTemplate) => void;
 }
 
-// 进度条组件，用于状态属性 (体力、精力、心情、爱欲)
-// 改为无图标，紧凑设计
-const StatusBar = ({ label, value, colorClass }: { label: string, value: number, colorClass: string }) => (
+// 进度条组件
+export const StatusBar = ({ label, value, colorClass }: { label: string, value: number, colorClass: string }) => (
   <div className="w-full">
     <div className="flex justify-between text-xs font-bold text-gray-500 mb-0.5">
         <span>{label}</span>
@@ -23,43 +23,62 @@ const StatusBar = ({ label, value, colorClass }: { label: string, value: number,
   </div>
 );
 
-// 数值组件，用于基础属性 (体质、学识等)
-const AttrBox = ({ label, value }: { label: string, value: number }) => (
-    <div className="flex flex-col items-center p-2 bg-gray-50 rounded border border-gray-100">
+// 数值组件
+export const AttrBox = ({ label, value }: { label: string, value: number }) => (
+    <div className="flex flex-col items-center p-2 bg-gray-50 rounded border border-gray-100 min-w-[3rem]">
         <span className="text-xs text-gray-500 mb-1">{label}</span>
-        <span className="font-bold text-gray-800 text-lg">{value}</span>
+        <span className="font-bold text-gray-800 text-lg leading-none">{value}</span>
     </div>
 );
 
-const TagChip: React.FC<{ tag: RuntimeTag }> = ({ tag }) => {
+// 竞赛属性色块组件 (新)
+const RaceAttrBlock = ({ label, value, color }: { label: string, value: number, color: string }) => (
+    <div className={`${color} text-white rounded-lg p-2 flex flex-col items-center justify-center shadow-sm border-b-2 border-black/10`}>
+        <span className="text-[10px] font-bold opacity-90 mb-0.5">{label}</span>
+        <span className="font-bold text-lg leading-none drop-shadow-sm">{value}</span>
+    </div>
+);
+
+// 标签组件 (可点击)
+export const TagChip: React.FC<{ tag: RuntimeTag; onClick?: (t: TagTemplate) => void }> = ({ tag, onClick }) => {
     const template = TAGS[tag.templateId];
     if (!template) return null;
     
-    let bg = "bg-gray-100";
-    let text = "text-gray-600";
-    let border = "border-gray-300";
+    // 默认 R1: 灰铁
+    let bg = "bg-zinc-200";
+    let text = "text-zinc-700";
+    let border = "border-zinc-300";
 
-    if (template.稀有度 === 2) { 
-        bg = "bg-blue-50";
-        text = "text-blue-700";
-        border = "border-blue-200";
+    if (template.稀有度 === 2) { // R2: 白银
+        bg = "bg-slate-50";
+        text = "text-slate-600";
+        border = "border-slate-300";
     }
-    if (template.稀有度 >= 3) { 
+    if (template.稀有度 === 3) { // R3: 黄金
         bg = "bg-yellow-50";
         text = "text-yellow-700";
-        border = "border-yellow-300";
+        border = "border-yellow-400";
+    }
+    if (template.稀有度 >= 4) { // R4: 彩钻
+        bg = "bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50";
+        text = "text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600";
+        border = "border-purple-300";
     }
 
     return (
-        <span className={`${bg} ${text} ${border} text-xs font-bold me-1.5 px-3 py-1 rounded border inline-block mb-1.5 shadow-sm`} title={template.描述}>
+        <button 
+            onClick={(e) => { e.stopPropagation(); onClick?.(template); }}
+            className={`${bg} ${text} ${border} text-xs font-bold me-1.5 px-2 py-1 rounded border inline-block mb-1 shadow-sm hover:opacity-80 active:scale-95 transition-all`} 
+            title={template.描述}
+        >
             {template.显示名}
-        </span>
+        </button>
     );
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ characters }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ characters, onTagClick }) => {
   return (
-    <div className="w-full md:w-96 flex-shrink-0 bg-[#F2F4F8] border-r border-gray-300 h-screen overflow-y-auto no-scrollbar shadow-2xl z-10 flex flex-col font-sans">
+    <div className="w-full h-full bg-[#F2F4F8] border-r border-gray-300 overflow-y-auto no-scrollbar shadow-2xl flex flex-col font-sans">
       <div className="p-4 bg-white border-b border-gray-200 shadow-sm sticky top-0 z-20">
         <h2 className="font-bold text-gray-700 text-center tracking-wide text-lg">队伍编成</h2>
       </div>
@@ -99,25 +118,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ characters }) => {
                          <AttrBox label="财富" value={char.通用属性.财富} />
                     </div>
 
-                    {/* 3. Race Attributes (Only for Uma) */}
+                    {/* 3. Race Attributes (Color Blocks) */}
                     {!isTrainer && (
-                        <div className="mb-4 pt-2">
-                             <div className="grid grid-cols-5 gap-1 text-center text-[10px] font-bold text-gray-500 mb-1">
-                                <span>速</span><span>耐</span><span>力</span><span>毅</span><span>智</span>
-                             </div>
-                             <div className="grid grid-cols-5 gap-1">
-                                <div className="h-1 bg-blue-200 rounded"><div className="h-full bg-blue-500 rounded" style={{width: `${Math.min(100, char.竞赛属性.速度/12)}%`}}></div></div>
-                                <div className="h-1 bg-orange-200 rounded"><div className="h-full bg-orange-500 rounded" style={{width: `${Math.min(100, char.竞赛属性.耐力/12)}%`}}></div></div>
-                                <div className="h-1 bg-red-200 rounded"><div className="h-full bg-red-500 rounded" style={{width: `${Math.min(100, char.竞赛属性.力量/12)}%`}}></div></div>
-                                <div className="h-1 bg-pink-200 rounded"><div className="h-full bg-pink-500 rounded" style={{width: `${Math.min(100, char.竞赛属性.毅力/12)}%`}}></div></div>
-                                <div className="h-1 bg-green-200 rounded"><div className="h-full bg-green-500 rounded" style={{width: `${Math.min(100, char.竞赛属性.智慧/12)}%`}}></div></div>
-                             </div>
-                             <div className="grid grid-cols-5 gap-1 text-center text-xs font-bold text-gray-800 mt-1">
-                                <span>{char.竞赛属性.速度}</span>
-                                <span>{char.竞赛属性.耐力}</span>
-                                <span>{char.竞赛属性.力量}</span>
-                                <span>{char.竞赛属性.毅力}</span>
-                                <span>{char.竞赛属性.智慧}</span>
+                        <div className="mb-4 pt-1">
+                             <div className="grid grid-cols-5 gap-2">
+                                <RaceAttrBlock label="速度" value={char.竞赛属性.速度} color="bg-blue-500" />
+                                <RaceAttrBlock label="耐力" value={char.竞赛属性.耐力} color="bg-orange-500" />
+                                <RaceAttrBlock label="力量" value={char.竞赛属性.力量} color="bg-red-500" />
+                                <RaceAttrBlock label="毅力" value={char.竞赛属性.毅力} color="bg-pink-500" />
+                                <RaceAttrBlock label="智慧" value={char.竞赛属性.智慧} color="bg-green-500" />
                              </div>
                         </div>
                     )}
@@ -125,7 +134,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ characters }) => {
                     {/* 4. Tags */}
                     <div className="flex flex-wrap pt-3 border-t border-gray-100 mt-2">
                         {char.标签组.map((tag, idx) => (
-                            <TagChip key={`${tag.templateId}-${idx}`} tag={tag} />
+                            <TagChip 
+                                key={`${tag.templateId}-${idx}`} 
+                                tag={tag} 
+                                onClick={onTagClick}
+                            />
                         ))}
                     </div>
                 </div>

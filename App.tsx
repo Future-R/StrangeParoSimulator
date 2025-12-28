@@ -3,8 +3,10 @@ import { Sidebar } from './components/Sidebar';
 import { EventLog } from './components/EventLog';
 import { GameControls } from './components/GameControls';
 import { EventModal } from './components/EventModal';
+import { TagModal } from './components/TagModal';
 import { SetupScreen } from './components/SetupScreen';
-import { GameState, RuntimeCharacter, LogEntry } from './types';
+import { MobileCharacterList } from './components/MobileCharacterList';
+import { GameState, RuntimeCharacter, LogEntry, TagTemplate } from './types';
 import { createRuntimeCharacter, triggerCharacterEvent, executeAction, checkCondition, getTurnDate, parseText } from './services/engine';
 import { CHARACTERS, EVENTS } from './constants';
 
@@ -26,6 +28,7 @@ const createInitialState = (): GameState => {
 
 function App() {
   const [gameState, setGameState] = useState<GameState>(createInitialState());
+  const [activeTag, setActiveTag] = useState<TagTemplate | null>(null);
 
   // DEBUG: Expose state to console
   useEffect(() => {
@@ -47,7 +50,7 @@ function App() {
           logs: [{
               turn: 0,
               characterName: '系统',
-              text: `欢迎来到特雷森学园，${name}！`,
+              text: `${name}与${uma.名称}的三年开始了。`,
               type: 'system'
           }],
           pendingEvents: [],
@@ -262,7 +265,6 @@ function App() {
     ? gameState.characters.find(c => c.instanceId === currentPendingEvent.characterId)
     : undefined;
 
-  // UPDATE: Passed gameState.currentTurn to parseText
   const parsedModalText = currentPendingEvent && currentPendingChar
     ? parseText(currentPendingEvent.event.正文, currentPendingChar, gameState.currentTurn, gameState.characters, currentPendingEvent.variables)
     : undefined;
@@ -275,15 +277,48 @@ function App() {
 
   return (
     <div className="flex flex-col md:flex-row h-screen w-full overflow-hidden bg-white">
-        <Sidebar characters={gameState.characters} />
-        <div className="flex-1 flex flex-col h-full relative">
-            <div className="p-4 border-b bg-white shadow-sm flex justify-between items-center z-20">
-                <h1 className="text-xl font-bold text-gray-800">怪文书模拟器</h1>
-                <div className="text-xs text-gray-500">Ver 0.6.4</div>
-            </div>
-            <EventLog logs={gameState.logs} />
-            <div className="h-24"></div>
+        
+        {/* Mobile Header (Date) - Visible only on mobile */}
+        <div className="md:hidden flex-shrink-0 bg-white border-b border-gray-200 p-3 shadow-sm flex justify-center items-center z-20">
+             <div className="px-4 py-1 rounded-full border border-green-400 bg-green-50">
+                <span className="font-bold text-green-700 text-base">{getTurnDate(gameState.currentTurn)}</span>
+             </div>
         </div>
+
+        {/* Desktop Sidebar - Hidden on Mobile */}
+        <div className="hidden md:flex md:w-96 flex-shrink-0 h-full z-10">
+            <Sidebar 
+                characters={gameState.characters} 
+                onTagClick={setActiveTag}
+            />
+        </div>
+
+        <div className="flex-1 flex flex-col h-full relative overflow-hidden">
+            {/* Desktop Header */}
+            <div className="hidden md:flex p-4 border-b bg-white shadow-sm justify-between items-center z-20 flex-shrink-0">
+                <h1 className="text-xl font-bold text-gray-800">怪文书模拟器</h1>
+                <div className="text-xs text-gray-500">Ver 0.6.6</div>
+            </div>
+
+            {/* Main Content Area (Scrollable) */}
+            <div className="flex-1 overflow-y-auto flex flex-col w-full">
+                
+                {/* Mobile Character Accordion List - Visible only on Mobile, part of scroll flow */}
+                <div className="md:hidden flex-shrink-0">
+                     <MobileCharacterList 
+                        characters={gameState.characters} 
+                        onTagClick={setActiveTag}
+                     />
+                </div>
+
+                {/* Event Log - The rest of the space */}
+                <EventLog logs={gameState.logs} />
+            </div>
+
+            {/* Spacer for fixed bottom controls */}
+            <div className="h-16 md:h-24 flex-shrink-0"></div>
+        </div>
+
         <EventModal 
             isOpen={!!currentPendingEvent} 
             event={currentPendingEvent?.event} 
@@ -292,6 +327,13 @@ function App() {
             parsedText={parsedModalText}
             onSelectOption={handleOptionSelect}
         />
+
+        <TagModal 
+            isOpen={!!activeTag}
+            tag={activeTag}
+            onClose={() => setActiveTag(null)}
+        />
+        
         <GameControls 
             currentTurn={gameState.currentTurn} 
             maxTurns={gameState.maxTurns}
