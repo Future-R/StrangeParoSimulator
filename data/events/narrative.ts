@@ -109,7 +109,7 @@ export const NARRATIVE_EVENTS: GameEvent[] = [
   // --- 联动/梗事件 (新增) ---
   {
     id: 'gambler_learn',
-    权重: 3,
+    权重: 1,
     可触发次数: 1,
     标签组: [],
     触发条件: '当前角色.模板ID != "特别周" && 当前角色.标签组 不存在 "赌狗"', 
