@@ -1,7 +1,18 @@
+
 import { GameEvent } from '../../types';
 
 export const CHARACTER_EVENTS: GameEvent[] = [
   // --- 特定事件 ---
+  {
+    id: 'ojou_allowance',
+    权重: 100,
+    可触发次数: 5,
+    标签组: ['个人剧情'],
+    触发条件: '当前角色.标签组 存在 "大小姐" && 当前角色.属性.财富 < 10',
+    标题: '家族支援',
+    正文: '听说{当前角色.名称}手头有点紧，家里寄来了一笔零花钱。”',
+    操作指令: '属性变更 财富 3'
+  },
   {
     id: 'nature_sigh',
     权重: 33,
