@@ -109,7 +109,7 @@ export const NARRATIVE_EVENTS: GameEvent[] = [
   // --- 联动/梗事件 (新增) ---
   {
     id: 'gambler_learn',
-    权重: 5,
+    权重: 3,
     可触发次数: 1,
     标签组: [],
     触发条件: '当前角色.模板ID != "特别周" && 当前角色.标签组 不存在 "赌狗"', 
@@ -119,7 +119,7 @@ export const NARRATIVE_EVENTS: GameEvent[] = [
   {
     id: 'gambler_win_nature',
     权重: 33,
-    可触发次数: 3,
+    可触发次数: -1,
     标签组: [],
     触发条件: '当前角色.标签组 存在 "赌狗" && 当前角色.标签组 存在 "配角"',
     正文: '{当前角色.名称} 借了很多钱去赌骰子。结果因为全押3点而大赚了一笔。',
@@ -127,7 +127,7 @@ export const NARRATIVE_EVENTS: GameEvent[] = [
   },
   {
     id: 'gambler_bet',
-    权重: 20,
+    权重: 15,
     可触发次数: -1,
     标签组: ['赌狗'],
     触发条件: '当前角色.标签组 存在 "赌狗"',
