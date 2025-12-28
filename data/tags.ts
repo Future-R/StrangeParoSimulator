@@ -21,7 +21,7 @@ export const TAGS: Record<string, TagTemplate> = {
     描述: '拥有超常体能的少女。',
     稀有度: 4,
     互斥标签: [],
-    人类可用: false,
+    人类可用: true,
     马娘可用: true,
     开局可选: true
   },
