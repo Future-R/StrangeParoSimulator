@@ -1,6 +1,8 @@
-import React from 'react';
-import { RuntimeCharacter, RuntimeTag, TagTemplate } from '../types';
+
+import React, { useState } from 'react';
+import { RuntimeCharacter, RuntimeTag, TagTemplate, Aptitudes } from '../types';
 import { TAGS } from '../constants';
+import { AptitudeModal } from './AptitudeModal';
 
 interface SidebarProps {
   characters: RuntimeCharacter[];
@@ -31,8 +33,8 @@ export const AttrBox = ({ label, value }: { label: string, value: number }) => (
     </div>
 );
 
-// 竞赛属性色块组件 (新)
-const RaceAttrBlock = ({ label, value, color }: { label: string, value: number, color: string }) => (
+// 竞赛属性色块组件
+export const RaceAttrBlock = ({ label, value, color }: { label: string, value: number, color: string }) => (
     <div className={`${color} text-white rounded-lg p-2 flex flex-col items-center justify-center shadow-sm border-b-2 border-black/10`}>
         <span className="text-[10px] font-bold opacity-90 mb-0.5">{label}</span>
         <span className="font-bold text-lg leading-none drop-shadow-sm">{value}</span>
@@ -77,6 +79,11 @@ export const TagChip: React.FC<{ tag: RuntimeTag; onClick?: (t: TagTemplate) => 
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ characters, onTagClick }) => {
+  const [aptModalData, setAptModalData] = useState<{name: string, apt: Aptitudes} | null>(null);
+
+  // characters prop passed here should already be filtered by inTeam, but just in case
+  const displayCharacters = characters.filter(c => c.inTeam);
+
   return (
     <div className="w-full h-full bg-[#F2F4F8] border-r border-gray-300 overflow-y-auto no-scrollbar shadow-2xl flex flex-col font-sans">
       <div className="p-4 bg-white border-b border-gray-200 shadow-sm sticky top-0 z-20">
@@ -84,7 +91,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ characters, onTagClick }) => {
       </div>
       
       <div className="p-4 space-y-6 flex-1">
-        {characters.map((char) => {
+        {displayCharacters.map((char) => {
             const isTrainer = char.标签组.some(t => t.templateId === '训练员');
             const cardColor = isTrainer ? 'border-green-400' : 'border-pink-400';
             const headerColor = isTrainer ? 'bg-green-500' : 'bg-pink-500';
@@ -118,17 +125,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ characters, onTagClick }) => {
                          <AttrBox label="财富" value={char.通用属性.财富} />
                     </div>
 
-                    {/* 3. Race Attributes (Color Blocks) */}
+                    {/* 3. Race Attributes & Aptitudes */}
                     {!isTrainer && (
-                        <div className="mb-4 pt-1">
-                             <div className="grid grid-cols-5 gap-2">
-                                <RaceAttrBlock label="速度" value={char.竞赛属性.速度} color="bg-blue-500" />
-                                <RaceAttrBlock label="耐力" value={char.竞赛属性.耐力} color="bg-orange-500" />
-                                <RaceAttrBlock label="力量" value={char.竞赛属性.力量} color="bg-red-500" />
-                                <RaceAttrBlock label="毅力" value={char.竞赛属性.毅力} color="bg-pink-500" />
-                                <RaceAttrBlock label="智慧" value={char.竞赛属性.智慧} color="bg-green-500" />
-                             </div>
-                        </div>
+                        <>
+                            <div className="mb-4 pt-1">
+                                <div className="grid grid-cols-5 gap-2">
+                                    <RaceAttrBlock label="速度" value={char.竞赛属性.速度} color="bg-blue-500" />
+                                    <RaceAttrBlock label="耐力" value={char.竞赛属性.耐力} color="bg-orange-500" />
+                                    <RaceAttrBlock label="力量" value={char.竞赛属性.力量} color="bg-red-500" />
+                                    <RaceAttrBlock label="毅力" value={char.竞赛属性.毅力} color="bg-pink-500" />
+                                    <RaceAttrBlock label="智慧" value={char.竞赛属性.智慧} color="bg-green-500" />
+                                </div>
+                            </div>
+                            {char.适性 && (
+                                <button 
+                                    onClick={() => setAptModalData({ name: char.名称, apt: char.适性! })}
+                                    className="w-full mt-1 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-bold transition-colors border border-blue-200 border-dashed"
+                                >
+                                    查看适性详情
+                                </button>
+                            )}
+                        </>
                     )}
 
                     {/* 4. Tags */}
@@ -146,6 +163,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ characters, onTagClick }) => {
             );
         })}
       </div>
+
+      <AptitudeModal 
+          isOpen={!!aptModalData} 
+          onClose={() => setAptModalData(null)} 
+          aptitudes={aptModalData?.apt} 
+          title={aptModalData?.name || ''} 
+      />
     </div>
   );
 };

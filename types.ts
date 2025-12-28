@@ -26,6 +26,20 @@ export interface RaceAttributes {
   智慧: number;
 }
 
+// 适性结构 (S, A, B, C, D, E, F, G)
+export interface Aptitudes {
+  草地: string;
+  沙地: string;
+  短距离: string;
+  英里: string;
+  中距离: string;
+  长距离: string;
+  领头: string;
+  前列: string;
+  居中: string;
+  后追: string;
+}
+
 // 关系结构 (0-100)
 export interface Relationship {
   友情: number;
@@ -65,6 +79,7 @@ export interface CharacterTemplate {
   初始标签: string[];
   通用属性: Attributes;
   竞赛属性: RaceAttributes;
+  适性?: Aptitudes; // 新增：适性配置
   isTrainer: boolean;
   称呼列表?: CallingRule[]; // 新增：自定义对训练员的称呼逻辑
 }
@@ -77,10 +92,12 @@ export interface RuntimeCharacter {
   性别: '男' | '女';
   通用属性: Attributes;
   竞赛属性: RaceAttributes;
+  适性?: Aptitudes; // 新增
   标签组: RuntimeTag[];
   已触发事件: Record<string, number>;
   关系列表: Record<string, Relationship>; // Key: Target Instance ID (usually 'p1')
   称呼列表?: CallingRule[]; // 运行时也保留配置
+  inTeam: boolean; // 新增：是否在队伍中（决定是否显示和行动）
 }
 
 // 选项对象

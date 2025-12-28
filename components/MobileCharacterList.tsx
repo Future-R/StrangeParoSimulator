@@ -1,6 +1,8 @@
+
 import React, { useState } from 'react';
-import { RuntimeCharacter, TagTemplate } from '../types';
-import { StatusBar, AttrBox, TagChip } from './Sidebar';
+import { RuntimeCharacter, TagTemplate, Aptitudes } from '../types';
+import { StatusBar, AttrBox, TagChip, RaceAttrBlock } from './Sidebar';
+import { AptitudeModal } from './AptitudeModal';
 
 interface MobileCharacterListProps {
   characters: RuntimeCharacter[];
@@ -8,9 +10,12 @@ interface MobileCharacterListProps {
 }
 
 export const MobileCharacterList: React.FC<MobileCharacterListProps> = ({ characters, onTagClick }) => {
+  const displayCharacters = characters.filter(c => c.inTeam);
+  
   // 默认展开第一个非训练员角色 (通常是马娘)
-  const defaultOpenId = characters.find(c => !c.templateId.includes('训练员'))?.instanceId || characters[0]?.instanceId;
+  const defaultOpenId = displayCharacters.find(c => !c.templateId.includes('训练员'))?.instanceId || displayCharacters[0]?.instanceId;
   const [expandedId, setExpandedId] = useState<string | null>(defaultOpenId);
+  const [aptModalData, setAptModalData] = useState<{name: string, apt: Aptitudes} | null>(null);
 
   const toggleExpand = (id: string) => {
     setExpandedId(prev => prev === id ? null : id);
@@ -18,7 +23,7 @@ export const MobileCharacterList: React.FC<MobileCharacterListProps> = ({ charac
 
   return (
     <div className="bg-gray-100 border-b border-gray-300 shadow-sm z-10">
-      {characters.map((char) => {
+      {displayCharacters.map((char) => {
         const isTrainer = char.标签组.some(t => t.templateId === '训练员');
         const isExpanded = expandedId === char.instanceId;
         
@@ -106,22 +111,29 @@ export const MobileCharacterList: React.FC<MobileCharacterListProps> = ({ charac
 
                     {/* Race Attributes (Uma only) */}
                     {!isTrainer && (
-                        <div className="mb-3 bg-white p-2 rounded border border-gray-200">
-                             <div className="grid grid-cols-5 gap-1 text-center text-[10px] font-bold text-gray-500 mb-1">
-                                <span>速</span><span>耐</span><span>力</span><span>毅</span><span>智</span>
-                             </div>
-                             <div className="grid grid-cols-5 gap-1 text-center text-sm font-bold text-gray-800">
-                                <span className="text-blue-600">{char.竞赛属性.速度}</span>
-                                <span className="text-orange-600">{char.竞赛属性.耐力}</span>
-                                <span className="text-red-600">{char.竞赛属性.力量}</span>
-                                <span className="text-pink-600">{char.竞赛属性.毅力}</span>
-                                <span className="text-green-600">{char.竞赛属性.智慧}</span>
-                             </div>
-                        </div>
+                        <>
+                            <div className="mb-3 pt-1">
+                                <div className="grid grid-cols-5 gap-2">
+                                    <RaceAttrBlock label="速度" value={char.竞赛属性.速度} color="bg-blue-500" />
+                                    <RaceAttrBlock label="耐力" value={char.竞赛属性.耐力} color="bg-orange-500" />
+                                    <RaceAttrBlock label="力量" value={char.竞赛属性.力量} color="bg-red-500" />
+                                    <RaceAttrBlock label="毅力" value={char.竞赛属性.毅力} color="bg-pink-500" />
+                                    <RaceAttrBlock label="智慧" value={char.竞赛属性.智慧} color="bg-green-500" />
+                                </div>
+                            </div>
+                            {char.适性 && (
+                                <button 
+                                    onClick={() => setAptModalData({ name: char.名称, apt: char.适性! })}
+                                    className="w-full mt-1 mb-2 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-bold transition-colors border border-blue-200 border-dashed"
+                                >
+                                    查看适性详情
+                                </button>
+                            )}
+                        </>
                     )}
 
                     {/* Tags */}
-                    <div className="flex flex-wrap">
+                    <div className="flex flex-wrap mt-1">
                          {char.标签组.map((tag, idx) => (
                             <TagChip 
                                 key={`${tag.templateId}-${idx}`} 
@@ -135,6 +147,13 @@ export const MobileCharacterList: React.FC<MobileCharacterListProps> = ({ charac
           </div>
         );
       })}
+      
+      <AptitudeModal 
+          isOpen={!!aptModalData} 
+          onClose={() => setAptModalData(null)} 
+          aptitudes={aptModalData?.apt} 
+          title={aptModalData?.name || ''} 
+      />
     </div>
   );
 };

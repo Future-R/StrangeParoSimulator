@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { EventLog } from './components/EventLog';
@@ -8,9 +9,9 @@ import { SetupScreen } from './components/SetupScreen';
 import { MobileCharacterList } from './components/MobileCharacterList';
 import { GameState, RuntimeCharacter, LogEntry, TagTemplate } from './types';
 import { createRuntimeCharacter, triggerCharacterEvent, executeAction, checkCondition, getTurnDate, parseText } from './services/engine';
-import { CHARACTERS, EVENTS } from './constants';
+import { CHARACTERS, EVENTS, ENDING_EVENTS } from './constants';
 
-const INITIAL_MAX_TURNS = 71;
+const INITIAL_MAX_TURNS = 72;
 
 const createInitialState = (): GameState => {
     return {
@@ -37,20 +38,39 @@ function App() {
   }, [gameState]);
 
   const handleSetupComplete = (name: string, gender: '男'|'女', selectedTags: string[]) => {
-      const trainer = createRuntimeCharacter(CHARACTERS['训练员'], 'p1', name, gender, selectedTags);
-      const umaKeys = ['优秀素质', '东海帝王', '摩耶重炮', '米浴'];
-      const randomKey = umaKeys[Math.floor(Math.random() * umaKeys.length)];
-      const uma = createRuntimeCharacter(CHARACTERS[randomKey], 'c1');
+      // 1. Determine Starter Uma (Random from a subset)
+      const umaKeys = ['优秀素质', '东海帝王', '摩耶重炮', '米浴', '北部玄驹'];
+      const randomUmaKey = umaKeys[Math.floor(Math.random() * umaKeys.length)];
+
+      // 2. Create All Characters
+      const allCharacters: RuntimeCharacter[] = [];
+      
+      // Create Trainer (Player) - Always 'p1'
+      const trainer = createRuntimeCharacter(CHARACTERS['训练员'], 'p1', true, name, gender, selectedTags);
+      allCharacters.push(trainer);
+
+      // Create everyone else
+      Object.values(CHARACTERS).forEach(tpl => {
+          if (tpl.id === '训练员') return; // Already created
+
+          const isStarter = tpl.id === randomUmaKey;
+          const instanceId = isStarter ? 'c1' : `npc_${tpl.id}`;
+          
+          const char = createRuntimeCharacter(tpl, instanceId, isStarter); // Only starter is inTeam initially
+          allCharacters.push(char);
+      });
+
+      const starterUma = allCharacters.find(c => c.instanceId === 'c1');
 
       setGameState({
           gamePhase: 'playing',
           currentTurn: 0,
           maxTurns: INITIAL_MAX_TURNS,
-          characters: [trainer, uma],
+          characters: allCharacters,
           logs: [{
               turn: 0,
               characterName: '系统',
-              text: `${name}与${uma.名称}的三年开始了。`,
+              text: `${name}与${starterUma?.名称 || '未知马娘'}的三年开始了。`,
               type: 'system'
           }],
           pendingEvents: [],
@@ -147,9 +167,13 @@ function App() {
                      nextVariables = preRes.newVariables || nextVariables;
                 }
 
-                // Execute Main Actions immediately (since we are jumping to it, it 'happens' now)
+                // Check if jump target has options
+                // If it has options -> Add to pending
+                // If NO options -> Execute immediately (Chain narrative)
+                const hasOptions = nextEvent.选项组 && nextEvent.选项组.length > 0;
+                
                 let jumpEffectHtml = '';
-                if (nextEvent.操作指令) {
+                if (nextEvent.操作指令 && !hasOptions) {
                     const actRes = executeAction(nextEvent.操作指令, nextChar, prev.currentTurn, newCharacters, nextVariables);
                     if (actRes.logs.length > 0) {
                         jumpEffectHtml = `<div class='mt-2 pt-2 border-t border-dashed border-gray-200 text-xs text-gray-400 font-bold'>${actRes.logs.join('  ')}</div>`;
@@ -166,13 +190,27 @@ function App() {
                     isImportant: !!nextEvent.标题
                 });
 
-                // Add to Pending Events (so user can interact or click continue)
-                remainingEvents = [{ 
-                    characterId, 
-                    event: nextEvent,
-                    variables: nextVariables 
-                }, ...remainingEvents];
+                if (hasOptions) {
+                     // Add to Pending Events (so user can interact or click continue)
+                    remainingEvents = [{ 
+                        characterId, 
+                        event: nextEvent,
+                        variables: nextVariables 
+                    }, ...remainingEvents];
+                }
             }
+        }
+
+        // --- CHECK GAME OVER AFTER ENDING EVENT ---
+        // If we were processing the ending (turn > maxTurns) and no more events pending
+        if (prev.currentTurn > prev.maxTurns && remainingEvents.length === 0) {
+            return {
+                ...prev,
+                characters: newCharacters,
+                logs: newLogs,
+                pendingEvents: [],
+                gamePhase: 'gameover'
+            };
         }
 
         return {
@@ -191,9 +229,31 @@ function App() {
         let newState = { ...prev };
         let nextQueue = [...prev.currentTurnQueue];
 
+        // 1. If queue is empty, try to advance turn
         if (nextQueue.length === 0) {
             const nextTurn = prev.currentTurn + 1;
-            if (nextTurn > prev.maxTurns) return { ...prev, gamePhase: 'gameover', isAuto: false };
+            
+            // --- ENDING CHECK ---
+            // If we just finished the last turn (maxTurns), trigger the Ending Phase
+            if (nextTurn > prev.maxTurns) {
+                 // Prevent infinite loop if we are already in ending phase but just cleared an event
+                 // Only trigger if we aren't already processing an ending
+                 
+                 // Strategy: Move to Turn 73 (Max+1) and queue the Trainer to trigger the Ending Event
+                 newState.currentTurn = nextTurn;
+                 
+                 // Find an ending event
+                 // Filter endings by priority/condition (simplified for now to just pick first valid)
+                 const endingEvent = ENDING_EVENTS.find(e => checkCondition(e.触发条件, prev.characters[0], nextTurn, undefined, prev.characters));
+                 
+                 if (endingEvent) {
+                     // Force trigger the ending event on the Trainer (p1)
+                     return triggerCharacterEvent(newState, 'p1', endingEvent);
+                 } else {
+                     // No ending found? Just game over.
+                     return { ...prev, gamePhase: 'gameover', isAuto: false };
+                 }
+            }
             
             newState.currentTurn = nextTurn;
             newState.logs = [...prev.logs, {
@@ -202,9 +262,11 @@ function App() {
                 text: `=== ${getTurnDate(nextTurn)} ===`,
                 type: 'system'
             }];
-            nextQueue = prev.characters.map(c => c.instanceId);
+            // Only queue characters currently in the team
+            nextQueue = prev.characters.filter(c => c.inTeam).map(c => c.instanceId);
         }
 
+        // 2. Process next character in queue
         const targetId = nextQueue.shift();
         newState.currentTurnQueue = nextQueue;
         
@@ -275,6 +337,9 @@ function App() {
 
   const hasPendingActions = gameState.currentTurnQueue.length > 0;
 
+  // Filter for display
+  const teamCharacters = gameState.characters.filter(c => c.inTeam);
+
   return (
     <div className="flex flex-col md:flex-row h-screen w-full overflow-hidden bg-white">
         
@@ -288,7 +353,7 @@ function App() {
         {/* Desktop Sidebar - Hidden on Mobile */}
         <div className="hidden md:flex md:w-96 flex-shrink-0 h-full z-10">
             <Sidebar 
-                characters={gameState.characters} 
+                characters={teamCharacters} 
                 onTagClick={setActiveTag}
             />
         </div>
@@ -297,7 +362,6 @@ function App() {
             {/* Desktop Header */}
             <div className="hidden md:flex p-4 border-b bg-white shadow-sm justify-between items-center z-20 flex-shrink-0">
                 <h1 className="text-xl font-bold text-gray-800">怪文书模拟器</h1>
-                <div className="text-xs text-gray-500">Ver 0.6.6</div>
             </div>
 
             {/* Main Content Area (Scrollable) */}
@@ -306,7 +370,7 @@ function App() {
                 {/* Mobile Character Accordion List - Visible only on Mobile, part of scroll flow */}
                 <div className="md:hidden flex-shrink-0">
                      <MobileCharacterList 
-                        characters={gameState.characters} 
+                        characters={teamCharacters} 
                         onTagClick={setActiveTag}
                      />
                 </div>
