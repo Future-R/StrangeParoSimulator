@@ -8,7 +8,7 @@ import { TagModal } from './components/TagModal';
 import { SetupScreen } from './components/SetupScreen';
 import { MobileCharacterList } from './components/MobileCharacterList';
 import { GameState, RuntimeCharacter, LogEntry, TagTemplate } from './types';
-import { createRuntimeCharacter, triggerCharacterEvent, executeAction, checkCondition, getTurnDate, parseText } from './services/engine';
+import { createRuntimeCharacter, triggerCharacterEvent, executeAction, checkCondition, getTurnDate, parseText, generateStateDiffLog } from './services/engine';
 import { CHARACTERS, EVENTS, ENDING_EVENTS } from './constants';
 
 const INITIAL_MAX_TURNS = 72;
@@ -35,6 +35,20 @@ function App() {
   useEffect(() => {
     // @ts-ignore
     window.GameDebug = gameState;
+    
+    // @ts-ignore
+    window.printRelations = () => {
+        console.table(
+            gameState.characters
+                .filter(c => c.instanceId !== 'p1')
+                .map(c => ({
+                    姓名: c.名称,
+                    友情: c.关系列表['p1']?.友情 || 0,
+                    爱情: c.关系列表['p1']?.爱情 || 0,
+                    爱欲: c.通用属性.爱欲
+                }))
+        );
+    };
   }, [gameState]);
 
   const handleSetupComplete = (name: string, gender: '男'|'女', selectedTags: string[]) => {
@@ -61,20 +75,23 @@ function App() {
       });
 
       const starterUma = allCharacters.find(c => c.instanceId === 'c1');
+      
+      // Fix: Populate queue immediately for Turn 1
+      const starterQueue = allCharacters.filter(c => c.inTeam).map(c => c.instanceId);
 
       setGameState({
           gamePhase: 'playing',
-          currentTurn: 0,
+          currentTurn: 1, // Start at Turn 1 (Early Jan)
           maxTurns: INITIAL_MAX_TURNS,
           characters: allCharacters,
           logs: [{
-              turn: 0,
+              turn: 1,
               characterName: '系统',
               text: `${name}与${starterUma?.名称 || '未知马娘'}的三年开始了。`,
               type: 'system'
           }],
           pendingEvents: [],
-          currentTurnQueue: [],
+          currentTurnQueue: starterQueue,
           isAuto: false,
           autoSpeed: 1000
       });
@@ -87,31 +104,32 @@ function App() {
         const currentEventItem = prev.pendingEvents[0];
         const { characterId, event, variables } = currentEventItem;
         
+        // 1. Snapshot State Before Action
+        const snapshotCharacters = JSON.parse(JSON.stringify(prev.characters)) as RuntimeCharacter[];
+        
+        // 2. Prepare Mutable State
         let newCharacters = JSON.parse(JSON.stringify(prev.characters)) as RuntimeCharacter[];
         let char = newCharacters.find(c => c.instanceId === characterId);
         
         if (!char) return prev;
 
-        let resultLogs: string[] = [];
         let jumpId: string | undefined = undefined;
 
         // Special handling for "Continue" button (optionIndex === -1)
         if (optionIndex === -1) {
-            // No action needed for continue, just proceed to remove event or check branches
+            // No action needed for continue
         } else {
              const option = event.选项组?.[optionIndex];
              if (option) {
-                // 1. 执行选项操作
-                const res = executeAction(option.操作指令, char, prev.currentTurn, newCharacters, variables);
-                resultLogs = res.logs;
+                // Execute Action (Silent)
+                const res = executeAction(option.操作指令, char, prev.currentTurn, newCharacters, variables, true);
                 if (res.nextEventId) jumpId = res.nextEventId;
 
-                // 2. 选项分支
+                // Process Branches (Silent)
                 if (event.分支组) {
                     for (const branch of event.分支组) {
                         if (checkCondition(branch.判别式, char, prev.currentTurn, optionIndex + 1, newCharacters, variables)) {
-                            const bRes = executeAction(branch.操作指令, char, prev.currentTurn, newCharacters, variables);
-                            resultLogs.push(...bRes.logs);
+                            const bRes = executeAction(branch.操作指令, char, prev.currentTurn, newCharacters, variables, true);
                             if (bRes.nextEventId) jumpId = bRes.nextEventId;
                             if (branch.跳转事件ID) jumpId = branch.跳转事件ID;
                             break;
@@ -121,13 +139,11 @@ function App() {
              }
         }
         
-        // 3. 自动分支 (For events without options, or if we want to check branch conditions regardless of option)
-        // Usually used for "Exhaustion" events that might chain
+        // Auto Branches for Continue (Silent)
         if (optionIndex === -1 && event.分支组) {
              for (const branch of event.分支组) {
                 if (checkCondition(branch.判别式, char, prev.currentTurn, undefined, newCharacters, variables)) {
-                    const bRes = executeAction(branch.操作指令, char, prev.currentTurn, newCharacters, variables);
-                    resultLogs.push(...bRes.logs);
+                    const bRes = executeAction(branch.操作指令, char, prev.currentTurn, newCharacters, variables, true);
                     if (bRes.nextEventId) jumpId = bRes.nextEventId;
                     if (branch.跳转事件ID) jumpId = branch.跳转事件ID;
                     break;
@@ -135,10 +151,22 @@ function App() {
             }
         }
 
+        // --- Tag Logic (Silent) ---
+        // Modify state in place, results will be captured by Diff
+        if (event.标签组?.includes('工作') && char.标签组.some(t => t.templateId === '社畜')) {
+            if (char.通用属性.体力 >= 5 && char.通用属性.心情 >= 5) {
+                char.通用属性.体力 -= 5;
+                char.通用属性.心情 -= 5;
+                char.通用属性.精力 = Math.min(100, char.通用属性.精力 + 10);
+            }
+        }
+
+        // --- Diffing to Generate Clean Log ---
+        const diffLogs = generateStateDiffLog(snapshotCharacters, newCharacters, characterId);
+        
         const newLogs = [...prev.logs];
-        const combinedEffects = [...resultLogs];
-        const effectHtml = combinedEffects.length > 0 
-            ? `<div class='mt-1 text-xs font-bold text-gray-500'>(${combinedEffects.join(', ')})</div>`
+        const effectHtml = diffLogs.length > 0 
+            ? `<div class='mt-1 text-xs font-bold text-gray-500'>(${diffLogs.join(', ')})</div>`
             : "";
         
         if (optionIndex !== -1) {
@@ -153,34 +181,34 @@ function App() {
 
         let remainingEvents = prev.pendingEvents.slice(1);
         
-        // --- JUMP LOGIC with TEXT LOGGING ---
+        // --- JUMP LOGIC (Silent Execution, Log Parsing) ---
         if (jumpId) {
             const nextEvent = EVENTS.find(e => e.id === jumpId);
             if (nextEvent) {
-                // Determine Character for next event (usually same, but could be different if variables supported it, for now assume same)
                 const nextChar = char; 
 
-                // Execute Pre-actions immediately
                 let nextVariables = { ...variables };
                 if (nextEvent.预操作指令) {
-                     const preRes = executeAction(nextEvent.预操作指令, nextChar, prev.currentTurn, newCharacters, nextVariables);
+                     const preRes = executeAction(nextEvent.预操作指令, nextChar, prev.currentTurn, newCharacters, nextVariables, true);
                      nextVariables = preRes.newVariables || nextVariables;
                 }
 
-                // Check if jump target has options
-                // If it has options -> Add to pending
-                // If NO options -> Execute immediately (Chain narrative)
                 const hasOptions = nextEvent.选项组 && nextEvent.选项组.length > 0;
                 
                 let jumpEffectHtml = '';
                 if (nextEvent.操作指令 && !hasOptions) {
-                    const actRes = executeAction(nextEvent.操作指令, nextChar, prev.currentTurn, newCharacters, nextVariables);
-                    if (actRes.logs.length > 0) {
-                        jumpEffectHtml = `<div class='mt-2 pt-2 border-t border-dashed border-gray-200 text-xs text-gray-400 font-bold'>${actRes.logs.join('  ')}</div>`;
+                    // Execute immediately silently, then diff again
+                    // Use newCharacters as baseline for jump action
+                    const preJumpSnapshot = JSON.parse(JSON.stringify(newCharacters)) as RuntimeCharacter[];
+                    
+                    executeAction(nextEvent.操作指令, nextChar, prev.currentTurn, newCharacters, nextVariables, true);
+                    
+                    const jumpDiffs = generateStateDiffLog(preJumpSnapshot, newCharacters, characterId);
+                    if (jumpDiffs.length > 0) {
+                        jumpEffectHtml = `<div class='mt-2 pt-2 border-t border-dashed border-gray-200 text-xs text-gray-400 font-bold'>${jumpDiffs.join('  ')}</div>`;
                     }
                 }
 
-                // Log the Text Immediately
                 const parsedText = parseText(nextEvent.正文, nextChar, prev.currentTurn, newCharacters, nextVariables) + jumpEffectHtml;
                 newLogs.push({
                     turn: prev.currentTurn,
@@ -191,7 +219,6 @@ function App() {
                 });
 
                 if (hasOptions) {
-                     // Add to Pending Events (so user can interact or click continue)
                     remainingEvents = [{ 
                         characterId, 
                         event: nextEvent,
@@ -201,8 +228,17 @@ function App() {
             }
         }
 
-        // --- CHECK GAME OVER AFTER ENDING EVENT ---
-        // If we were processing the ending (turn > maxTurns) and no more events pending
+        // --- CHECK IF THIS WAS AN ENDING ---
+        if (currentEventItem.event.标签组?.includes('结局')) {
+             return {
+                ...prev,
+                characters: newCharacters,
+                logs: newLogs,
+                pendingEvents: [],
+                gamePhase: 'gameover'
+            };
+        }
+
         if (prev.currentTurn > prev.maxTurns && remainingEvents.length === 0) {
             return {
                 ...prev,
@@ -231,26 +267,38 @@ function App() {
 
         // 1. If queue is empty, try to advance turn
         if (nextQueue.length === 0) {
+            
+            // --- MID-GAME ENDING CHECK (Negative Basic Stats) ---
+            // Check all characters in team for negative BASIC attributes (Con, Int, Chr, Wealth)
+            // Survival attributes (HP, Mood) are now clamped at 0.
+            for (const char of prev.characters) {
+                if (!char.inTeam) continue;
+                
+                let badEndId: string | null = null;
+                // Survival check: Constitution, Intelligence, Charm, Wealth
+                if (char.通用属性.体质 < 0) badEndId = 'ending_low_con';
+                else if (char.通用属性.学识 < 0) badEndId = 'ending_low_int';
+                else if (char.通用属性.魅力 < 0) badEndId = 'ending_low_chr';
+                else if (char.通用属性.财富 < 0) badEndId = 'ending_low_wealth';
+
+                if (badEndId) {
+                    const endEvent = ENDING_EVENTS.find(e => e.id === badEndId);
+                    if (endEvent) {
+                        return triggerCharacterEvent(newState, char.instanceId, endEvent);
+                    }
+                }
+            }
+
             const nextTurn = prev.currentTurn + 1;
             
-            // --- ENDING CHECK ---
-            // If we just finished the last turn (maxTurns), trigger the Ending Phase
+            // --- ENDING CHECK (MAX TURNS) ---
             if (nextTurn > prev.maxTurns) {
-                 // Prevent infinite loop if we are already in ending phase but just cleared an event
-                 // Only trigger if we aren't already processing an ending
-                 
-                 // Strategy: Move to Turn 73 (Max+1) and queue the Trainer to trigger the Ending Event
                  newState.currentTurn = nextTurn;
-                 
-                 // Find an ending event
-                 // Filter endings by priority/condition (simplified for now to just pick first valid)
                  const endingEvent = ENDING_EVENTS.find(e => checkCondition(e.触发条件, prev.characters[0], nextTurn, undefined, prev.characters));
                  
                  if (endingEvent) {
-                     // Force trigger the ending event on the Trainer (p1)
                      return triggerCharacterEvent(newState, 'p1', endingEvent);
                  } else {
-                     // No ending found? Just game over.
                      return { ...prev, gamePhase: 'gameover', isAuto: false };
                  }
             }
@@ -262,7 +310,6 @@ function App() {
                 text: `=== ${getTurnDate(nextTurn)} ===`,
                 type: 'system'
             }];
-            // Only queue characters currently in the team
             nextQueue = prev.characters.filter(c => c.inTeam).map(c => c.instanceId);
         }
 
@@ -327,30 +374,30 @@ function App() {
     ? gameState.characters.find(c => c.instanceId === currentPendingEvent.characterId)
     : undefined;
 
-  const parsedModalText = currentPendingEvent && currentPendingChar
-    ? parseText(currentPendingEvent.event.正文, currentPendingChar, gameState.currentTurn, gameState.characters, currentPendingEvent.variables)
-    : undefined;
+  const parsedModalText = currentPendingEvent?.parsedText 
+    ? currentPendingEvent.parsedText
+    : (currentPendingEvent && currentPendingChar
+        ? parseText(currentPendingEvent.event.正文, currentPendingChar, gameState.currentTurn, gameState.characters, currentPendingEvent.variables)
+        : undefined);
 
-  const parsedModalTitle = currentPendingEvent && currentPendingChar && currentPendingEvent.event.标题
-    ? parseText(currentPendingEvent.event.标题, currentPendingChar, gameState.currentTurn, gameState.characters, currentPendingEvent.variables)
-    : undefined;
+  const parsedModalTitle = currentPendingEvent?.parsedTitle
+    ? currentPendingEvent.parsedTitle
+    : (currentPendingEvent && currentPendingChar && currentPendingEvent.event.标题
+        ? parseText(currentPendingEvent.event.标题, currentPendingChar, gameState.currentTurn, gameState.characters, currentPendingEvent.variables)
+        : undefined);
 
   const hasPendingActions = gameState.currentTurnQueue.length > 0;
-
-  // Filter for display
   const teamCharacters = gameState.characters.filter(c => c.inTeam);
 
   return (
     <div className="flex flex-col md:flex-row h-screen w-full overflow-hidden bg-white">
         
-        {/* Mobile Header (Date) - Visible only on mobile */}
         <div className="md:hidden flex-shrink-0 bg-white border-b border-gray-200 p-3 shadow-sm flex justify-center items-center z-20">
              <div className="px-4 py-1 rounded-full border border-green-400 bg-green-50">
                 <span className="font-bold text-green-700 text-base">{getTurnDate(gameState.currentTurn)}</span>
              </div>
         </div>
 
-        {/* Desktop Sidebar - Hidden on Mobile */}
         <div className="hidden md:flex md:w-96 flex-shrink-0 h-full z-10">
             <Sidebar 
                 characters={teamCharacters} 
@@ -359,27 +406,20 @@ function App() {
         </div>
 
         <div className="flex-1 flex flex-col h-full relative overflow-hidden">
-            {/* Desktop Header */}
             <div className="hidden md:flex p-4 border-b bg-white shadow-sm justify-between items-center z-20 flex-shrink-0">
                 <h1 className="text-xl font-bold text-gray-800">怪文书模拟器</h1>
             </div>
 
-            {/* Main Content Area (Scrollable) */}
             <div className="flex-1 overflow-y-auto flex flex-col w-full">
-                
-                {/* Mobile Character Accordion List - Visible only on Mobile, part of scroll flow */}
                 <div className="md:hidden flex-shrink-0">
                      <MobileCharacterList 
                         characters={teamCharacters} 
                         onTagClick={setActiveTag}
                      />
                 </div>
-
-                {/* Event Log - The rest of the space */}
                 <EventLog logs={gameState.logs} />
             </div>
 
-            {/* Spacer for fixed bottom controls */}
             <div className="h-16 md:h-24 flex-shrink-0"></div>
         </div>
 

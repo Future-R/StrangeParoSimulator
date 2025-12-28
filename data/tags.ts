@@ -89,8 +89,8 @@ export const TAGS: Record<string, TagTemplate> = {
   '社畜': {
     id: '社畜',
     显示名: '社畜',
-    描述: '工作就是生命。\n每回合精力恢复，但心情微降。',
-    稀有度: 1,
+    描述: '工作就是生命。\n心情和体力能代替工作精力消耗。',
+    稀有度: 2,
     互斥标签: ['小祖宗', '懒洋洋'],
     人类可用: true,
     马娘可用: false,
@@ -111,7 +111,7 @@ export const TAGS: Record<string, TagTemplate> = {
     显示名: '厌男',
     描述: '讨厌男性。',
     稀有度: 2,
-    互斥标签: [''],
+    互斥标签: [],
     人类可用: false,
     马娘可用: true,
     开局可选: true

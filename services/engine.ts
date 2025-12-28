@@ -7,10 +7,13 @@ import { EVENTS, CHARACTERS, TAGS } from '../constants';
 // ===========================
 
 export const getTurnInfo = (turn: number) => {
-  const year = Math.floor(turn / 24) + 1;
-  const monthIndex = Math.floor((turn % 24) / 2);
+  // Fix: Shift turn by 1 so Turn 1 is the start
+  const adjustedTurn = Math.max(0, turn - 1);
+  const year = Math.floor(adjustedTurn / 24) + 1;
+  const monthIndex = Math.floor((adjustedTurn % 24) / 2);
   const month = monthIndex + 1;
-  const isLate = turn % 2 === 1;
+  // Even is Early (0), Odd is Late (1) based on adjusted turn
+  const isLate = adjustedTurn % 2 === 1; 
   return { 
       year, 
       month, 
@@ -293,6 +296,20 @@ export const parseText = (text: string, char: RuntimeCharacter, turn: number, al
   const trainer = allChars.find(c => c.templateId === '训练员') || allChars.find(c => c.instanceId === 'p1');
   const trainerGender = trainer?.性别 || '男';
 
+  // 0. 随机文字解析 (New: {随机文字("A", "B")})
+  // Executed first so inner variables can be parsed later
+  result = result.replace(/{随机文字\((.*?)\)}/g, (match, argsContent) => {
+      const options: string[] = [];
+      // Match content inside quotes
+      const argPattern = /"([^"]*)"/g;
+      let argMatch;
+      while ((argMatch = argPattern.exec(argsContent)) !== null) {
+          options.push(argMatch[1]);
+      }
+      if (options.length === 0) return match;
+      return options[Math.floor(Math.random() * options.length)];
+  });
+
   // 1. 动态称呼解析
   let calling = '训练员'; // 默认值
   if (char.称呼列表 && char.称呼列表.length > 0) {
@@ -314,9 +331,6 @@ export const parseText = (text: string, char: RuntimeCharacter, turn: number, al
 
   // 3. 变量替换 (NEW: {VarName.名称} or {VarName})
   if (variables) {
-      // 3.1 Ternary Expression Replacement: {Var > 50 ? "Yes" : "No"}
-      // Regex handles: {Variable Op Val ? "Str1" : "Str2"}
-      // Supports Chinese variable names
       result = result.replace(/{([a-zA-Z0-9_\u4e00-\u9fa5]+)\s*([><]=?|==)\s*(-?\d+)\s*\?\s*"([^"]*)"\s*:\s*"([^"]*)"}/g, 
         (match, varName, op, valStr, trueText, falseText) => {
              const val = parseInt(valStr);
@@ -331,9 +345,13 @@ export const parseText = (text: string, char: RuntimeCharacter, turn: number, al
              }
              return res ? trueText : falseText;
       });
+      
+      result = result.replace(/{当前角色\.标签组 存在 "([^"]+)" \? "([^"]*)" : "([^"]*)"}/g, 
+        (match, tagId, trueText, falseText) => {
+            const hasTag = char.标签组.some(t => t.templateId === tagId);
+            return hasTag ? trueText : falseText;
+      });
 
-      // 3.2 Simple Variable Value Replacement
-      // Match {VarName.Prop} or just {VarName} if it's a primitive
       result = result.replace(/{([a-zA-Z0-9_\u4e00-\u9fa5]+)(\.([a-zA-Z0-9_\u4e00-\u9fa5]+))?}/g, (match, varName, _, prop) => {
           if (varName === '当前角色') return match; 
           if (varName === '训练员') {
@@ -345,25 +363,18 @@ export const parseText = (text: string, char: RuntimeCharacter, turn: number, al
           }
 
           const val = variables[varName];
-          
-          // Case 1: Primitive Value (Number/String)
           if (!prop && (typeof val === 'number' || typeof val === 'string')) {
               return val.toString();
           }
-
-          // Case 2: Object (Character) Property access
           if (prop && typeof val === 'string') {
-              // Assume val is instanceId
               const targetChar = allChars.find(c => c.instanceId === val);
               if (!targetChar) return match;
-
               if (prop === '名称') return targetChar.名称;
               // @ts-ignore
               if (targetChar.通用属性[prop] !== undefined) return targetChar.通用属性[prop].toString();
               // @ts-ignore
               if (targetChar.竞赛属性[prop] !== undefined) return targetChar.竞赛属性[prop].toString();
           }
-
           return match;
       });
   }
@@ -388,13 +399,110 @@ export const parseText = (text: string, char: RuntimeCharacter, turn: number, al
   return result;
 };
 
+// ===========================
+// State Diffing for Clean Logs
+// ===========================
+
+export const generateStateDiffLog = (oldChars: RuntimeCharacter[], newChars: RuntimeCharacter[], mainCharId: string): string[] => {
+    const diffs: string[] = [];
+
+    newChars.forEach(newChar => {
+        const oldChar = oldChars.find(c => c.instanceId === newChar.instanceId);
+        if (!oldChar) return;
+
+        // 1. Generic Attributes
+        Object.keys(newChar.通用属性).forEach(key => {
+            const k = key as keyof typeof newChar.通用属性;
+            const delta = newChar.通用属性[k] - oldChar.通用属性[k];
+            if (delta !== 0) {
+                const prefix = newChar.instanceId !== mainCharId ? `(${newChar.名称})` : '';
+                diffs.push(`${prefix}${k} ${delta > 0 ? '+' : ''}${delta}`);
+            }
+        });
+
+        // 2. Race Attributes
+        Object.keys(newChar.竞赛属性).forEach(key => {
+            const k = key as keyof typeof newChar.竞赛属性;
+            const delta = newChar.竞赛属性[k] - oldChar.竞赛属性[k];
+            if (delta !== 0) {
+                const prefix = newChar.instanceId !== mainCharId ? `(${newChar.名称})` : '';
+                diffs.push(`${prefix}${k} ${delta > 0 ? '+' : ''}${delta}`);
+            }
+        });
+
+        // 3. Relationships (Only checking outgoing to Player 'p1' for now, or major changes)
+        // If the subject is Player, check their relation to others? 
+        // Or if subject is Uma, check relation to Player.
+        // Let's iterate all relationship targets.
+        Object.keys(newChar.关系列表).forEach(targetId => {
+             const oldRel = oldChar.关系列表[targetId] || { 友情: 0, 爱情: 0 };
+             const newRel = newChar.关系列表[targetId];
+             
+             // Name Resolution for Target
+             const targetChar = newChars.find(c => c.instanceId === targetId);
+             const targetName = targetChar ? targetChar.名称 : (targetId === 'p1' ? '训练员' : '未知');
+             
+             // Name Resolution for Subject
+             const subjectName = newChar.instanceId === mainCharId ? '' : `(${newChar.名称})`;
+             
+             // Only show simple logs. E.g. "(Uma) Friendship +5" (implied with Trainer)
+             // or "(Uma) Friendship(Teio) +5"
+             
+             const friendDelta = newRel.友情 - oldRel.友情;
+             const loveDelta = newRel.爱情 - oldRel.爱情;
+
+             if (friendDelta !== 0) {
+                 const relLabel = targetId === 'p1' ? '友情' : `友情(${targetName})`;
+                 diffs.push(`${subjectName}${relLabel} ${friendDelta > 0 ? '+' : ''}${friendDelta}`);
+             }
+             if (loveDelta !== 0) {
+                 const relLabel = targetId === 'p1' ? '爱情' : `爱情(${targetName})`;
+                 diffs.push(`${subjectName}${relLabel} ${loveDelta > 0 ? '+' : ''}${loveDelta}`);
+             }
+        });
+        
+        // 4. Tags
+        const oldTagIds = oldChar.标签组.map(t => t.templateId);
+        const newTagIds = newChar.标签组.map(t => t.templateId);
+        
+        newTagIds.forEach(id => {
+            if (!oldTagIds.includes(id)) {
+                 const prefix = newChar.instanceId !== mainCharId ? `(${newChar.名称})` : '';
+                 const tagName = TAGS[id]?.显示名 || id;
+                 diffs.push(`${prefix}获得标签【${tagName}】`);
+            }
+        });
+        oldTagIds.forEach(id => {
+            if (!newTagIds.includes(id)) {
+                 const prefix = newChar.instanceId !== mainCharId ? `(${newChar.名称})` : '';
+                 const tagName = TAGS[id]?.显示名 || id;
+                 diffs.push(`${prefix}移除标签【${tagName}】`);
+            }
+        });
+    });
+
+    return diffs;
+};
+
+
+// ===========================
+// Action Execution
+// ===========================
+
 export interface ActionResult {
     logs: string[];
     nextEventId?: string;
     newVariables?: Record<string, any>;
 }
 
-export const executeAction = (actionStr: string, char: RuntimeCharacter, turn: number, allChars: RuntimeCharacter[] = [], variables?: Record<string, any>): ActionResult => {
+export const executeAction = (
+    actionStr: string, 
+    char: RuntimeCharacter, 
+    turn: number, 
+    allChars: RuntimeCharacter[] = [], 
+    variables?: Record<string, any>,
+    silent: boolean = false
+): ActionResult => {
   if (!actionStr) return { logs: [] };
   
   const actions = actionStr.split(';').map(s => s.trim());
@@ -405,11 +513,8 @@ export const executeAction = (actionStr: string, char: RuntimeCharacter, turn: n
   actions.forEach(action => {
     if (!action) return;
 
-    // 1. 设置变量 (New Enhanced)
-    // Syntax 1: 设置变量 角色 [Key] = 获取随机队友()
-    // Syntax 2: 设置变量 [Key] = 随机(min~max)
+    // 1. 设置变量
     if (action.startsWith('设置变量')) {
-        // Case Random Number: 设置变量 骰子 = 随机(1~100)
         const mathMatch = action.match(/设置变量\s+([a-zA-Z0-9_\u4e00-\u9fa5]+)\s*=\s*随机\((\d+)~(\d+)\)/);
         if (mathMatch) {
             const [_, key, min, max] = mathMatch;
@@ -417,8 +522,6 @@ export const executeAction = (actionStr: string, char: RuntimeCharacter, turn: n
             currentVariables[key] = rand;
             return; 
         }
-
-        // Case Random Character
         const match = action.match(/设置变量\s+(\S+)\s+(\S+)\s*=\s*(.+)/);
         if (match) {
             const [_, type, key, func] = match;
@@ -433,17 +536,15 @@ export const executeAction = (actionStr: string, char: RuntimeCharacter, turn: n
         return;
     }
 
-    // 2. 变量计算 (New)
-    // Syntax: 变量计算 [Key] + [Value] (若 [Condition])
+    // 2. 变量计算
     if (action.startsWith('变量计算')) {
-        // Handle optional condition: "... 若 Condition"
         const parts = action.split(/\s+若\s+/);
         const mainPart = parts[0];
         const condition = parts[1];
 
         if (condition) {
              if (!checkCondition(condition, char, turn, undefined, allChars, currentVariables)) {
-                 return; // Condition failed, skip calc
+                 return; 
              }
         }
 
@@ -454,18 +555,16 @@ export const executeAction = (actionStr: string, char: RuntimeCharacter, turn: n
             if (typeof currentVariables[key] === 'number') {
                 if (op === '+') currentVariables[key] += val;
                 if (op === '-') currentVariables[key] -= val;
-                // logs.push(`变量 ${key} ${op}= ${val}`); // Debug log?
             }
         }
         return;
     }
 
-    // 3. 关系变更 (Function Syntax)
+    // 3. 关系变更
     if (action.startsWith('关系变更(')) {
         const content = action.substring(action.indexOf('(') + 1, action.lastIndexOf(')'));
         const args = content.split(',').map(s => s.trim());
         
-        // Case A: 关系变更(Subject, Target, Val)
         if (args.length === 3) {
             const subject = resolveTargetCharacter(args[0], char, allChars, currentVariables);
             let targetKey = 'p1';
@@ -475,11 +574,8 @@ export const executeAction = (actionStr: string, char: RuntimeCharacter, turn: n
                  if (!subject.关系列表[targetKey]) subject.关系列表[targetKey] = { 友情: 0, 爱情: 0 };
                  subject.关系列表[targetKey].友情 = Math.max(0, Math.min(100, subject.关系列表[targetKey].友情 + val));
                  if (val < 0) subject.关系列表[targetKey].爱情 = Math.max(0, Math.min(100, subject.关系列表[targetKey].爱情 + val));
-
-                 logs.push(`${subject.名称} 与 训练员 关系 ${val}`);
             }
         }
-        // Case B: 关系变更(Type, Subject, Target, Val)
         if (args.length === 4) {
                const type = args[0] as '友情' | '爱情';
                const subject = resolveTargetCharacter(args[1], char, allChars, currentVariables);
@@ -490,8 +586,6 @@ export const executeAction = (actionStr: string, char: RuntimeCharacter, turn: n
                    const targetId = target.instanceId;
                    if (!subject.关系列表[targetId]) subject.关系列表[targetId] = { 友情: 0, 爱情: 0 };
                    subject.关系列表[targetId][type] = Math.max(0, Math.min(100, subject.关系列表[targetId][type] + val));
-                   
-                   logs.push(`${subject.名称} 与 ${target.名称} 关系 ${val}`);
                }
                return; 
         }
@@ -504,17 +598,15 @@ export const executeAction = (actionStr: string, char: RuntimeCharacter, turn: n
     let cmd = parts[0];
     let argsStartIndex = 1;
 
-    // Check if parts[0] is a variable or subject ref (contains '.')
     if (parts[0].includes('.')) {
         const [subjKey, command] = parts[0].split('.');
         const resolved = resolveTargetCharacter(subjKey, char, allChars, currentVariables);
         if (resolved) {
             subject = resolved;
             cmd = command;
-            argsStartIndex = 1; // parts[1] is arg 1
+            argsStartIndex = 1; 
         }
     } else if (currentVariables[parts[0]]) {
-         // Variable acting as subject without dot? e.g. "随机角色 属性变更..."
          const resolved = resolveTargetCharacter(parts[0], char, allChars, currentVariables);
          if (resolved) {
              subject = resolved;
@@ -526,38 +618,67 @@ export const executeAction = (actionStr: string, char: RuntimeCharacter, turn: n
     if (cmd === '属性变更') {
       const attr = parts[argsStartIndex];
       const val = parseInt(parts[argsStartIndex + 1]);
+      
+      const isSurvival = ['体力', '心情', '精力', '爱欲'].includes(attr);
+      const isBasic = ['体质', '学识', '魅力', '财富'].includes(attr);
+      
       // @ts-ignore
       if (subject.通用属性[attr] !== undefined) {
-        // @ts-ignore
-        subject.通用属性[attr] = Math.max(0, Math.min(100, subject.通用属性[attr] + val));
+        if (isSurvival) {
+             // Survival attributes: Clamp 0 to 100
+             // @ts-ignore
+             subject.通用属性[attr] = Math.max(0, Math.min(100, subject.通用属性[attr] + val));
+        } else if (isBasic) {
+             // Basic attributes: Unbounded lower, max 100
+             // @ts-ignore
+             subject.通用属性[attr] = Math.min(100, subject.通用属性[attr] + val);
+        } else {
+             // @ts-ignore
+             subject.通用属性[attr] = Math.max(0, Math.min(100, subject.通用属性[attr] + val));
+        }
       } 
       // @ts-ignore
       else if (subject.竞赛属性[attr] !== undefined) {
         // @ts-ignore
         subject.竞赛属性[attr] = Math.max(0, Math.min(1200, subject.竞赛属性[attr] + val));
       }
-      const prefix = subject.instanceId !== char.instanceId ? `(${subject.名称})` : '';
-      logs.push(`${prefix}${attr} ${val > 0 ? '+' : ''}${val}`);
+      
+      if (!silent) {
+        const prefix = subject.instanceId !== char.instanceId ? `(${subject.名称})` : '';
+        logs.push(`${prefix}${attr} ${val > 0 ? '+' : ''}${val}`);
+      }
     } 
     else if (cmd === '训练员属性变更') {
        const attr = parts[argsStartIndex];
        const val = parseInt(parts[argsStartIndex + 1]);
        const trainer = allChars.find(c => c.templateId === '训练员' || c.instanceId === 'p1');
        if (trainer) {
+          const isSurvival = ['体力', '心情', '精力', '爱欲'].includes(attr);
+          const isBasic = ['体质', '学识', '魅力', '财富'].includes(attr);
           // @ts-ignore
           if (trainer.通用属性[attr] !== undefined) {
-            // @ts-ignore
-            trainer.通用属性[attr] = Math.max(0, Math.min(100, trainer.通用属性[attr] + val));
+            if (isSurvival) {
+                // @ts-ignore
+                trainer.通用属性[attr] = Math.max(0, Math.min(100, trainer.通用属性[attr] + val));
+            } else if (isBasic) {
+                // @ts-ignore
+                trainer.通用属性[attr] = Math.min(100, trainer.通用属性[attr] + val);
+            } else {
+                 // @ts-ignore
+                trainer.通用属性[attr] = Math.max(0, Math.min(100, trainer.通用属性[attr] + val));
+            }
           }
        }
-       logs.push(`(训练员)${attr} ${val > 0 ? '+' : ''}${val}`);
+       if (!silent) logs.push(`(训练员)${attr} ${val > 0 ? '+' : ''}${val}`);
     }
     else if (cmd === '获得标签') {
       const tagId = parts[argsStartIndex];
       if (TAGS[tagId] && !subject.标签组.some(t => t.templateId === tagId)) {
         subject.标签组.push({ templateId: tagId, 添加日期: turn, 层数: 1 });
-        const prefix = subject.instanceId !== char.instanceId ? `(${subject.名称})` : '';
-        logs.push(`${prefix}获得标签【${TAGS[tagId].显示名}】`);
+        if (!silent) {
+            const prefix = subject.instanceId !== char.instanceId ? `(${subject.名称})` : '';
+            logs.push(`${prefix}获得标签【${TAGS[tagId].显示名}】`);
+        }
       }
     }
     else if (cmd === '移除标签') {
@@ -565,8 +686,10 @@ export const executeAction = (actionStr: string, char: RuntimeCharacter, turn: n
       const index = subject.标签组.findIndex(t => t.templateId === tagId);
       if (index !== -1) {
           subject.标签组.splice(index, 1);
-          const prefix = subject.instanceId !== char.instanceId ? `(${subject.名称})` : '';
-          logs.push(`${prefix}移除标签【${TAGS[tagId].显示名}】`);
+          if (!silent) {
+              const prefix = subject.instanceId !== char.instanceId ? `(${subject.名称})` : '';
+              logs.push(`${prefix}移除标签【${TAGS[tagId].显示名}】`);
+          }
       }
     }
     else if (cmd === '跳转') {
@@ -584,7 +707,6 @@ export const executeAction = (actionStr: string, char: RuntimeCharacter, turn: n
         let val = parseInt(parts[argsStartIndex + 1]);
         const targetId = 'p1'; 
         
-        // 特质逻辑：木头 (爱情获取量 -80%)
         if (type === '爱情' && val > 0 && subject.标签组.some(t => t.templateId === '木头')) {
              val = Math.floor(val * 0.2);
         }
@@ -594,161 +716,163 @@ export const executeAction = (actionStr: string, char: RuntimeCharacter, turn: n
         }
         
         subject.关系列表[targetId][type] = Math.max(0, Math.min(100, subject.关系列表[targetId][type] + val));
-        
-        const prefix = subject.instanceId !== char.instanceId ? `(${subject.名称})` : '';
     }
   });
 
   return { logs, nextEventId, newVariables: currentVariables };
 };
 
-// ===========================
-// 事件触发器 (Event Trigger)
-// ===========================
+export const triggerCharacterEvent = (
+  state: GameState, 
+  characterId: string, 
+  forcedEvent?: GameEvent
+): GameState => {
+  // Create shallow copy of characters array
+  const characters = JSON.parse(JSON.stringify(state.characters)) as RuntimeCharacter[];
+  const charIndex = characters.findIndex(c => c.instanceId === characterId);
+  if (charIndex === -1) return state;
 
-export const triggerCharacterEvent = (state: GameState, characterId: string, specificEvent?: GameEvent): GameState => {
-  const char = state.characters.find(c => c.instanceId === characterId);
-  if (!char) return state;
+  const char = characters[charIndex]; 
+  
+  let eventToTrigger: GameEvent | undefined = forcedEvent;
+  let variables: Record<string, any> = {};
 
-  let selectedEvent: GameEvent | undefined = specificEvent;
-
-  // If no specific event provided, select one
-  if (!selectedEvent) {
-      // 1. Filter valid events
-      const validEvents = EVENTS.filter(event => {
-        // Check usage count
-        const usedCount = char.已触发事件[event.id] || 0;
-        if (event.可触发次数 !== -1 && usedCount >= event.可触发次数) return false;
+  if (!eventToTrigger) {
+    // Filter available events
+    const availableEvents = EVENTS.filter(e => {
+        // Check triggers count limit
+        const triggeredCount = char.已触发事件[e.id] || 0;
+        if (e.可触发次数 !== -1 && triggeredCount >= e.可触发次数) return false;
 
         // Check conditions
-        if (!checkCondition(event.触发条件, char, state.currentTurn, undefined, state.characters)) return false;
+        return checkCondition(e.触发条件, char, state.currentTurn, undefined, characters);
+    });
 
-        return true;
-      });
+    if (availableEvents.length === 0) return state;
 
-      if (validEvents.length === 0) return state;
-
-      // 2. Weighted Random Selection
-      const totalWeight = validEvents.reduce((sum, e) => sum + e.权重, 0);
-      let random = Math.random() * totalWeight;
-
-      for (const event of validEvents) {
-        random -= event.权重;
+    // Weighted Random Selection
+    const totalWeight = availableEvents.reduce((sum, e) => sum + e.权重, 0);
+    let random = Math.random() * totalWeight;
+    for (const e of availableEvents) {
+        random -= e.权重;
         if (random <= 0) {
-          selectedEvent = event;
-          break;
+            eventToTrigger = e;
+            break;
         }
-      }
+    }
+    // Fallback just in case
+    if (!eventToTrigger) eventToTrigger = availableEvents[availableEvents.length - 1];
+  }
+
+  if (!eventToTrigger) return state;
+
+  // Execute Pre-Action (Mutates variables, silent execution)
+  if (eventToTrigger.预操作指令) {
+      const res = executeAction(
+          eventToTrigger.预操作指令, 
+          char, 
+          state.currentTurn, 
+          characters, 
+          variables, 
+          true
+      );
+      if (res.newVariables) variables = { ...variables, ...res.newVariables };
+  }
+
+  // Update triggered count
+  char.已触发事件[eventToTrigger.id] = (char.已触发事件[eventToTrigger.id] || 0) + 1;
+  
+  // Parse Title and Text
+  const parsedTitle = eventToTrigger.标题 
+      ? parseText(eventToTrigger.标题, char, state.currentTurn, characters, variables) 
+      : undefined;
       
-      if (!selectedEvent) selectedEvent = validEvents[validEvents.length - 1];
-  }
+  const parsedText = parseText(eventToTrigger.正文, char, state.currentTurn, characters, variables);
 
-  // 3. Apply updates
-  const newCharacters = JSON.parse(JSON.stringify(state.characters)) as RuntimeCharacter[];
-  const newChar = newCharacters.find(c => c.instanceId === characterId)!;
+  const hasOptions = eventToTrigger.选项组 && eventToTrigger.选项组.length > 0;
 
-  // Update usage count
-  if (!newChar.已触发事件) newChar.已触发事件 = {};
-  newChar.已触发事件[selectedEvent.id] = (newChar.已触发事件[selectedEvent.id] || 0) + 1;
+  // --- BRANCHING LOGIC ---
 
-  // 4. Handle Pre-actions
-  let variables: Record<string, any> = {};
-  let preLogs: string[] = []; // Capture pre-action logs
-  if (selectedEvent.预操作指令) {
-      const res = executeAction(selectedEvent.预操作指令, newChar, state.currentTurn, newCharacters, variables);
-      variables = res.newVariables || {};
-      preLogs = res.logs;
-  }
+  if (hasOptions) {
+      // INTERACTIVE MODE: Add to pending, LOG THE TEXT, but wait for user input for actions.
+      
+      const newLog: LogEntry = {
+          turn: state.currentTurn,
+          characterName: char.名称,
+          text: parsedText,
+          type: 'event',
+          isImportant: !!parsedTitle
+      };
 
-  // 5. Check if it has options
-  const hasOptions = selectedEvent.选项组 && selectedEvent.选项组.length > 0;
+      const pendingItem: PendingEventItem = {
+          characterId: characterId,
+          event: eventToTrigger,
+          variables: variables,
+          parsedText,
+          parsedTitle
+      };
 
-  if (!hasOptions) {
-      // Direct Execution with Branch Support (New Feature)
-      let actionToExecute = selectedEvent.操作指令;
+      return {
+          ...state,
+          characters: characters, // Updated trigger count, pre-action variables used locally
+          logs: [...state.logs, newLog],
+          pendingEvents: [...state.pendingEvents, pendingItem]
+      };
+
+  } else {
+      // NARRATIVE MODE: Execute immediately, Log result, No Modal.
+      
+      // 1. Snapshot for Diff (Use original state chars vs mutated local 'characters')
+      const snapshotChars = state.characters; // Reference to old state
+      
+      // 2. Execute Main Action (Silent, on local 'characters')
       let jumpId: string | undefined = undefined;
+      if (eventToTrigger.操作指令) {
+          const res = executeAction(eventToTrigger.操作指令, char, state.currentTurn, characters, variables, true);
+          if (res.nextEventId) jumpId = res.nextEventId;
+      }
 
-      // Check branches if present
-      if (selectedEvent.分支组) {
-          for (const branch of selectedEvent.分支组) {
-              // Pass variables to checkCondition to support variable checks
-              if (checkCondition(branch.判别式, newChar, state.currentTurn, undefined, newCharacters, variables)) {
-                  actionToExecute = branch.操作指令;
-                  jumpId = branch.跳转事件ID;
+      // 3. Process Automatic Branches
+      if (eventToTrigger.分支组) {
+          for (const branch of eventToTrigger.分支组) {
+              if (checkCondition(branch.判别式, char, state.currentTurn, undefined, characters, variables)) {
+                  const bRes = executeAction(branch.操作指令, char, state.currentTurn, characters, variables, true);
+                  if (bRes.nextEventId) jumpId = bRes.nextEventId;
+                  if (branch.跳转事件ID) jumpId = branch.跳转事件ID;
                   break;
               }
           }
       }
 
-      const newLogs = [...state.logs];
-      let effectHtml = '';
-      
-      if (preLogs.length > 0) {
-           effectHtml += `<div class='mt-2 pt-2 border-t border-dashed border-gray-200 text-xs text-gray-400 font-bold'>${preLogs.join('  ')}</div>`;
-      }
+      // 4. Generate Diff Log
+      const diffLogs = generateStateDiffLog(snapshotChars, characters, characterId);
+      const effectHtml = diffLogs.length > 0 
+            ? `<div class='mt-1 text-xs font-bold text-gray-500'>(${diffLogs.join(', ')})</div>`
+            : "";
 
-      if (actionToExecute) {
-          const { logs, nextEventId } = executeAction(actionToExecute, newChar, state.currentTurn, newCharacters, variables);
-          if (logs.length > 0) {
-             effectHtml += `<div class='mt-1 text-xs text-gray-400 font-bold'>${logs.join('  ')}</div>`;
-          }
-          if (nextEventId) jumpId = nextEventId;
-      }
-      
-      const parsedText = parseText(selectedEvent.正文, newChar, state.currentTurn, newCharacters, variables) + effectHtml;
-      newLogs.push({
-        turn: state.currentTurn,
-        characterName: newChar.名称,
-        text: parsedText,
-        type: 'event',
-        isImportant: !!selectedEvent.标题
-      });
-
-      let nextState = {
-          ...state,
-          characters: newCharacters,
-          logs: newLogs,
-          // Do NOT add to pendingEvents
+      // 5. Create Log Entry
+      const newLog: LogEntry = {
+          turn: state.currentTurn,
+          characterName: char.名称,
+          text: parsedText + effectHtml,
+          type: 'event',
+          isImportant: !!parsedTitle
       };
 
-      // Handle Immediate Jump (Chain) if triggered by branch or action
+      let newState = {
+          ...state,
+          characters: characters,
+          logs: [...state.logs, newLog]
+      };
+
+      // 6. Handle Recursion (Jump)
       if (jumpId) {
-           const nextEvent = EVENTS.find(e => e.id === jumpId);
-           if (nextEvent) {
-               // Recursively trigger next event
-               return triggerCharacterEvent(nextState, characterId, nextEvent);
-           }
+          const nextEventObj = EVENTS.find(e => e.id === jumpId);
+          if (nextEventObj) {
+               return triggerCharacterEvent(newState, characterId, nextEventObj);
+          }
       }
 
-      return nextState;
-  } else {
-      // Has Options -> Open Modal
-      // BUG FIX: Log the main event text immediately so it appears in history
-      const newLogs = [...state.logs];
-      let preEffectHtml = '';
-      
-      if (preLogs.length > 0) {
-           preEffectHtml += `<div class='mt-2 pt-2 border-t border-dashed border-gray-200 text-xs text-gray-400 font-bold'>${preLogs.join('  ')}</div>`;
-      }
-
-      const parsedText = parseText(selectedEvent.正文, newChar, state.currentTurn, newCharacters, variables) + preEffectHtml;
-      newLogs.push({
-        turn: state.currentTurn,
-        characterName: newChar.名称,
-        text: parsedText,
-        type: 'event',
-        isImportant: !!selectedEvent.标题
-      });
-
-      return {
-          ...state,
-          characters: newCharacters,
-          logs: newLogs,
-          pendingEvents: [...state.pendingEvents, {
-              characterId: characterId,
-              event: selectedEvent,
-              variables: variables
-          }]
-      };
+      return newState;
   }
 };

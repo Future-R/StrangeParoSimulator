@@ -144,6 +144,8 @@ export interface PendingEventItem {
   characterId: string;
   event: GameEvent;
   variables?: Record<string, any>; // New: 临时变量存储 (Key -> Value/InstanceID)
+  parsedText?: string; // 新增：已解析的正文文本 (保证弹窗和日志一致)
+  parsedTitle?: string; // 新增：已解析的标题文本
 }
 
 // 全局游戏状态

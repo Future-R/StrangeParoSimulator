@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { TagTemplate } from '../types';
 import { getAvailableStartTags } from '../services/engine';
@@ -75,7 +76,11 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
     
     // 如果是随机，在这里解析为具体的性别
     let finalGender: '男' | '女';
-    if (gender === '随机') {
+
+    // 赛马娘标签强制锁定女性 (被动效果)
+    if (selectedTags.includes('马娘')) {
+        finalGender = '女';
+    } else if (gender === '随机') {
         finalGender = Math.random() > 0.5 ? '男' : '女';
     } else {
         finalGender = gender;
