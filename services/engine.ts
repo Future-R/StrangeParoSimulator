@@ -327,7 +327,8 @@ export const parseText = (text: string, char: RuntimeCharacter, turn: number, al
 
   // 0. 随机文字解析 (New: {随机文字("A", "B")})
   // Executed first so inner variables can be parsed later
-  result = result.replace(/{随机文字\((.*?)\)}/g, (match, argsContent) => {
+  // FIX: 使用 [\s\S]*? 匹配包括换行符在内的任意字符
+  result = result.replace(/{随机文字\(([\s\S]*?)\)}/g, (match, argsContent) => {
       const options: string[] = [];
       // Match content inside quotes
       const argPattern = /"([^"]*)"/g;
