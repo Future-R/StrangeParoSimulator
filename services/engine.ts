@@ -42,8 +42,7 @@ export const createRuntimeCharacter = (template: CharacterTemplate, instanceId: 
     层数: 1
   }));
 
-  // 初始化关系列表，默认为空
-  return {
+  const char: RuntimeCharacter = {
     instanceId,
     templateId: template.id,
     名称: overrideName || template.名称,
@@ -57,6 +56,24 @@ export const createRuntimeCharacter = (template: CharacterTemplate, instanceId: 
     称呼列表: template.称呼列表, // 继承模板配置
     inTeam: inTeam
   };
+
+  // 应用特质(标签)的初始效果修正
+  const hasTag = (id: string) => char.标签组.some(t => t.templateId === id);
+
+  if (hasTag('贫穷')) {
+      char.通用属性.财富 = Math.max(0, char.通用属性.财富 - 5);
+  }
+  if (hasTag('富豪')) {
+      char.通用属性.财富 += 5;
+  }
+  if (hasTag('魅力十足')) {
+      char.通用属性.魅力 += 5;
+  }
+  if (hasTag('路人脸')) {
+      char.通用属性.魅力 = Math.max(0, char.通用属性.魅力 - 5);
+  }
+
+  return char;
 };
 
 export const getAvailableStartTags = (): TagTemplate[] => {
@@ -443,7 +460,7 @@ export const generateStateDiffLog = (oldChars: RuntimeCharacter[], newChars: Run
              const targetName = targetChar ? targetChar.名称 : (targetId === 'p1' ? '训练员' : '未知');
              
              // Name Resolution for Subject
-             const subjectName = newChar.instanceId === mainCharId ? '' : `(${newChar.名称})`;
+             const subjectName = newChar.instanceId !== mainCharId ? `(${newChar.名称})` : '';
              
              // Only show simple logs. E.g. "(Uma) Friendship +5" (implied with Trainer)
              // or "(Uma) Friendship(Teio) +5"
@@ -469,14 +486,14 @@ export const generateStateDiffLog = (oldChars: RuntimeCharacter[], newChars: Run
             if (!oldTagIds.includes(id)) {
                  const prefix = newChar.instanceId !== mainCharId ? `(${newChar.名称})` : '';
                  const tagName = TAGS[id]?.显示名 || id;
-                 diffs.push(`${prefix}获得标签【${tagName}】`);
+                 diffs.push(`${prefix}获得特质【${tagName}】`);
             }
         });
         oldTagIds.forEach(id => {
             if (!newTagIds.includes(id)) {
                  const prefix = newChar.instanceId !== mainCharId ? `(${newChar.名称})` : '';
                  const tagName = TAGS[id]?.显示名 || id;
-                 diffs.push(`${prefix}移除标签【${tagName}】`);
+                 diffs.push(`${prefix}移除特质【${tagName}】`);
             }
         });
     });
@@ -677,7 +694,7 @@ export const executeAction = (
         subject.标签组.push({ templateId: tagId, 添加日期: turn, 层数: 1 });
         if (!silent) {
             const prefix = subject.instanceId !== char.instanceId ? `(${subject.名称})` : '';
-            logs.push(`${prefix}获得标签【${TAGS[tagId].显示名}】`);
+            logs.push(`${prefix}获得特质【${TAGS[tagId].显示名}】`);
         }
       }
     }
@@ -688,7 +705,7 @@ export const executeAction = (
           subject.标签组.splice(index, 1);
           if (!silent) {
               const prefix = subject.instanceId !== char.instanceId ? `(${subject.名称})` : '';
-              logs.push(`${prefix}移除标签【${TAGS[tagId].显示名}】`);
+              logs.push(`${prefix}移除特质【${TAGS[tagId].显示名}】`);
           }
       }
     }

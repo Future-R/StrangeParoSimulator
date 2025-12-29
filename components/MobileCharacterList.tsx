@@ -25,6 +25,7 @@ export const MobileCharacterList: React.FC<MobileCharacterListProps> = ({ charac
     <div className="bg-gray-100 border-b border-gray-300 shadow-sm z-10">
       {displayCharacters.map((char) => {
         const isTrainer = char.标签组.some(t => t.templateId === '训练员');
+        const hasUmaTag = char.标签组.some(t => t.templateId === '马娘');
         const isExpanded = expandedId === char.instanceId;
         
         // 紧凑模式下的颜色
@@ -115,7 +116,7 @@ export const MobileCharacterList: React.FC<MobileCharacterListProps> = ({ charac
                     </div>
 
                     {/* Race Attributes (Uma only) */}
-                    {!isTrainer && (
+                    {hasUmaTag && (
                         <>
                             <div className="mb-3 pt-1">
                                 <div className="grid grid-cols-5 gap-2">

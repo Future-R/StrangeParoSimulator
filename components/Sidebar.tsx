@@ -93,6 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ characters, onTagClick }) => {
       <div className="p-4 space-y-6 flex-1">
         {displayCharacters.map((char) => {
             const isTrainer = char.标签组.some(t => t.templateId === '训练员');
+            const hasUmaTag = char.标签组.some(t => t.templateId === '马娘');
             const cardColor = isTrainer ? 'border-green-400' : 'border-pink-400';
             const headerColor = isTrainer ? 'bg-green-500' : 'bg-pink-500';
 
@@ -126,7 +127,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ characters, onTagClick }) => {
                     </div>
 
                     {/* 3. Race Attributes & Aptitudes */}
-                    {!isTrainer && (
+                    {/* 显示条件修改：如果拥有马娘特质，则显示竞赛属性，即使是训练员 */}
+                    {hasUmaTag && (
                         <>
                             <div className="mb-4 pt-1">
                                 <div className="grid grid-cols-5 gap-2">

@@ -24,18 +24,18 @@ const SelectionFrame = () => (
   </div>
 );
 
-// Step 1: Label Pill (Flat, no shadow)
+// Step 1: Label Pill (Even Smaller for mobile)
 const LabelPill = ({ children }: { children?: React.ReactNode }) => (
-    <div className="bg-[#F2E3DB] text-[#5D4037] font-bold px-2 py-1 rounded-full text-xs md:text-sm text-center flex items-center justify-center tracking-wide whitespace-nowrap w-20 md:w-24 flex-shrink-0">
+    <div className="bg-[#F2E3DB] text-[#5D4037] font-bold px-1 md:px-2 py-1 rounded-full text-[10px] md:text-sm text-center flex items-center justify-center tracking-wide whitespace-nowrap w-[4.5rem] md:w-24 flex-shrink-0">
         {children}
     </div>
 );
 
-// Step 1: 3D Radio Button (Smaller on mobile, flex-shrink-0 to keep circular)
+// Step 1: 3D Radio Button (Compact)
 const RadioButton = ({ label, checked, onClick }: { label: string, checked: boolean, onClick: () => void }) => (
     <button onClick={onClick} className="flex items-center space-x-1 md:space-x-2 group focus:outline-none select-none cursor-pointer hover:opacity-90 active:scale-95 transition-transform">
-        {/* Outer Ring - flex-shrink-0 is crucial */}
-        <div className="relative w-7 h-7 md:w-8 md:h-8 rounded-full bg-gradient-to-b from-[#D1D5DB] to-[#9CA3AF] p-[1px] shadow-sm flex-shrink-0">
+        {/* Outer Ring - Reduced size */}
+        <div className="relative w-6 h-6 md:w-8 md:h-8 rounded-full bg-gradient-to-b from-[#D1D5DB] to-[#9CA3AF] p-[1px] shadow-sm flex-shrink-0">
              {/* White Rim */}
             <div className="w-full h-full rounded-full bg-white p-[2px] shadow-inner">
                  {/* Inner Color Sphere */}
@@ -51,8 +51,8 @@ const RadioButton = ({ label, checked, onClick }: { label: string, checked: bool
                  </div>
             </div>
         </div>
-        {/* Label - whitespace-nowrap */}
-        <span className={`font-bold text-sm md:text-lg tracking-wide whitespace-nowrap ${checked ? 'text-[#5D4037]' : 'text-[#A09085]'}`}>{label}</span>
+        {/* Label - Smaller text */}
+        <span className={`font-bold text-xs md:text-lg tracking-wide whitespace-nowrap ${checked ? 'text-[#5D4037]' : 'text-[#A09085]'}`}>{label}</span>
     </button>
 );
 
@@ -153,11 +153,12 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4 font-sans bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-2 md:p-4 font-sans bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
       
-      <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full overflow-hidden border-2 border-green-400 flex flex-col max-h-[90vh]">
+      {/* Container - removed max-h constraint slightly to allow content flow, but keeping structure */}
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[95%] md:max-w-3xl overflow-hidden border-2 border-green-400 flex flex-col">
         
-        {/* Header - Keep title large */}
+        {/* Header */}
         <div className="bg-[#66D814] p-4 text-center shadow-md relative overflow-hidden flex-shrink-0 z-10">
             <div className="absolute top-0 left-0 w-full h-full bg-white opacity-10 transform -skew-x-12"></div>
             <h1 className="text-2xl font-bold text-white relative z-10 tracking-widest drop-shadow-md">
@@ -166,51 +167,52 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
         </div>
 
         {step === 1 && (
-          <div className="p-6 md:p-8 pb-10 md:pb-12 animate-fade-in flex-1 overflow-y-auto flex flex-col items-center bg-white min-h-[400px]">
+          // Removed flex-1 and min-h-[400px] to allow container to shrink to fit content
+          <div className="px-3 py-6 md:p-8 animate-fade-in overflow-y-auto flex flex-col items-center bg-white">
              
              {/* Subtitle - Smaller */}
-             <div className="mb-8 text-[#5D4037] font-bold text-base md:text-lg tracking-wide">
+             <div className="mb-6 md:mb-8 text-[#5D4037] font-bold text-sm md:text-lg tracking-wide">
                 请输入训练员信息
              </div>
 
-             <div className="w-full max-w-lg space-y-5 px-1 md:px-6">
+             <div className="w-full max-w-lg space-y-4 md:space-y-5 px-0 md:px-6">
                 
                 {/* Name Input Row */}
                 <div className="flex flex-col space-y-1">
                     <div className="flex items-center">
                         <LabelPill>训练员姓名</LabelPill>
-                        <div className="ml-2 md:ml-3 flex-1 relative">
+                        <div className="ml-2 flex-1 relative">
                             <input 
                                 type="text" 
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
                                 maxLength={10}
-                                className="w-full bg-white border-2 border-[#E5D5CB] rounded-lg py-1.5 pl-3 pr-8 text-[#4A3B32] font-bold text-base md:text-lg focus:outline-none focus:border-[#66D814] transition-colors shadow-sm placeholder-[#D1C2B8]"
+                                className="w-full bg-white border-2 border-[#E5D5CB] rounded-lg py-1.5 pl-3 pr-8 text-[#4A3B32] font-bold text-sm md:text-lg focus:outline-none focus:border-[#66D814] transition-colors shadow-sm placeholder-[#D1C2B8]"
                                 placeholder=""
                             />
                             {/* Pencil Icon */}
                             <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-[#D1C2B8]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                         </div>
                     </div>
-                    {/* Helper text - Smaller */}
-                    <div className="text-right text-[10px] md:text-xs text-[#9CA3AF] font-bold tracking-wide mr-1">
+                    {/* Helper text - Tiny */}
+                    <div className="text-right text-[9px] md:text-xs text-[#9CA3AF] font-bold tracking-wide mr-1">
                         请输入1~10个字符的内容
                     </div>
                 </div>
 
-                {/* Gender Selection Row */}
+                {/* Gender Selection Row - Optimized for small screens */}
                 <div className="flex items-center">
                      <LabelPill>性 别</LabelPill>
-                     {/* Reduced margin and spacing for mobile compatibility */}
-                     <div className="flex items-center ml-3 md:ml-6 space-x-3 md:space-x-8 flex-1 justify-start overflow-x-visible">
-                        <RadioButton label="男性" checked={gender === '男'} onClick={() => setGender('男')} />
-                        <RadioButton label="女性" checked={gender === '女'} onClick={() => setGender('女')} />
-                        <RadioButton label="随机" checked={gender === '随机'} onClick={() => setGender('随机')} />
+                     {/* Very tight spacing to fit all 3 options */}
+                     <div className="flex items-center ml-2 space-x-2 md:space-x-8 flex-1 justify-start">
+                        <RadioButton label="男 性" checked={gender === '男'} onClick={() => setGender('男')} />
+                        <RadioButton label="女 性" checked={gender === '女'} onClick={() => setGender('女')} />
+                        <RadioButton label="随 机" checked={gender === '随机'} onClick={() => setGender('随机')} />
                      </div>
                 </div>
 
                 {/* Spacer */}
-                <div className="pt-6 md:pt-8"></div>
+                <div className="pt-4 md:pt-8"></div>
 
                 {/* Submit Button */}
                 <div className="flex justify-center">
@@ -234,17 +236,17 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
         )}
 
         {step === 2 && (
-          <div className="flex flex-col h-full animate-fade-in bg-gray-50 overflow-hidden">
+          <div className="flex flex-col h-full animate-fade-in bg-gray-50 overflow-hidden min-h-[50vh]">
             {/* Integrated Info Bar */}
             <div className="bg-white px-4 py-2 border-b border-gray-200 flex justify-between items-center shadow-sm flex-shrink-0">
-                 <span className="text-gray-500 font-bold text-sm">请选择3个特质</span>
-                 <span className={`px-3 py-1 rounded-full text-sm font-bold border ${selectedTags.length === 3 ? 'bg-green-100 text-green-700 border-green-300' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>
+                 <span className="text-gray-500 font-bold text-xs md:text-sm">请选择3个特质</span>
+                 <span className={`px-2 py-0.5 md:px-3 md:py-1 rounded-full text-xs md:text-sm font-bold border ${selectedTags.length === 3 ? 'bg-green-100 text-green-700 border-green-300' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>
                     已选: {selectedTags.length} / 3
                  </span>
             </div>
             
             {/* Scrollable Grid Area */}
-            <div className="flex-1 overflow-y-auto p-4 min-h-0">
+            <div className="flex-1 overflow-y-auto p-3 md:p-4 min-h-0">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {availableTags.map(tag => {
                     const isSelected = selectedTags.includes(tag.id);
@@ -270,12 +272,12 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
                         {isSelected && <SelectionFrame />}
                         <div className="w-full">
                             <div className="flex justify-between items-center mb-1">
-                                <span className={`font-bold text-base ${colors.title}`}>
+                                <span className={`font-bold text-sm md:text-base ${colors.title}`}>
                                     {tag.显示名}
                                 </span>
                                 {getRarityBadge(tag.稀有度)}
                             </div>
-                            <div className="text-xs text-gray-500 leading-snug">
+                            <div className="text-[10px] md:text-xs text-gray-500 leading-snug">
                                 {tag.描述}
                             </div>
                         </div>
