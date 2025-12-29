@@ -203,9 +203,9 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
                      <LabelPill>性 别</LabelPill>
                      {/* Reduced margin and spacing for mobile compatibility */}
                      <div className="flex items-center ml-3 md:ml-6 space-x-3 md:space-x-8 flex-1 justify-start overflow-x-visible">
-                        <RadioButton label="男 性" checked={gender === '男'} onClick={() => setGender('男')} />
-                        <RadioButton label="女 性" checked={gender === '女'} onClick={() => setGender('女')} />
-                        <RadioButton label="随 机" checked={gender === '随机'} onClick={() => setGender('随机')} />
+                        <RadioButton label="男性" checked={gender === '男'} onClick={() => setGender('男')} />
+                        <RadioButton label="女性" checked={gender === '女'} onClick={() => setGender('女')} />
+                        <RadioButton label="随机" checked={gender === '随机'} onClick={() => setGender('随机')} />
                      </div>
                 </div>
 
