@@ -53,7 +53,7 @@ function App() {
 
   const handleSetupComplete = (name: string, gender: '男'|'女', selectedTags: string[]) => {
       // 1. Determine Starter Uma (Random from a subset)
-      const umaKeys = ['优秀素质', '东海帝王', '摩耶重炮', '米浴', '北部玄驹'];
+      const umaKeys = ['优秀素质', '东海帝王', '摩耶重炮', '米浴', '北部玄驹', '无声铃鹿'];
       const randomUmaKey = umaKeys[Math.floor(Math.random() * umaKeys.length)];
 
       // 2. Create All Characters
