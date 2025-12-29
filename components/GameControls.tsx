@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { getTurnDate } from '../services/engine';
 
@@ -57,7 +58,7 @@ export const GameControls: React.FC<GameControlsProps> = ({
                         ${isAuto ? 'opacity-50 cursor-not-allowed filter grayscale ' : ''}
                         ${hasPendingActions 
                             ? 'bg-gradient-to-b from-orange-400 to-orange-500 border-orange-700 hover:from-orange-500 hover:to-orange-600' 
-                            : 'bg-gradient-to-b from-[#A5D63F] to-[#88B828] border-[#6E951E] hover:from-[#B4E44C] hover:to-[#99CC33]'
+                            : 'bg-gradient-to-b from-[#66D814] to-[#55B50A] border-[#4AA00D] hover:from-[#76E020] hover:to-[#60C510]'
                         }
                     `}
                 >

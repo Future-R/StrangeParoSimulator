@@ -7,14 +7,65 @@ interface SetupScreenProps {
   onComplete: (name: string, gender: '男' | '女', selectedTags: string[]) => void;
 }
 
+// 绿色瞄准框组件 (3D立体风格) - Used in Step 2
+const SelectionFrame = () => (
+  <div className="absolute inset-0 pointer-events-none z-20">
+    {/* 使用 drop-shadow 滤镜模拟厚度和立体感 */}
+    <div className="w-full h-full relative" style={{ filter: 'drop-shadow(0px 4px 0px #3F8C0B)' }}>
+        {/* Top Left */}
+        <div className="absolute -top-1.5 -left-1.5 w-7 h-7 border-t-[6px] border-l-[6px] border-[#66D814] rounded-tl-xl"></div>
+        {/* Top Right */}
+        <div className="absolute -top-1.5 -right-1.5 w-7 h-7 border-t-[6px] border-r-[6px] border-[#66D814] rounded-tr-xl"></div>
+        {/* Bottom Left */}
+        <div className="absolute -bottom-1.5 -left-1.5 w-7 h-7 border-b-[6px] border-l-[6px] border-[#66D814] rounded-bl-xl"></div>
+        {/* Bottom Right */}
+        <div className="absolute -bottom-1.5 -right-1.5 w-7 h-7 border-b-[6px] border-r-[6px] border-[#66D814] rounded-br-xl"></div>
+    </div>
+  </div>
+);
+
+// Step 1: Label Pill (Flat, no shadow)
+const LabelPill = ({ children }: { children?: React.ReactNode }) => (
+    <div className="bg-[#F2E3DB] text-[#5D4037] font-bold px-2 py-1 rounded-full text-xs md:text-sm text-center flex items-center justify-center tracking-wide whitespace-nowrap w-20 md:w-24 flex-shrink-0">
+        {children}
+    </div>
+);
+
+// Step 1: 3D Radio Button (Smaller on mobile, flex-shrink-0 to keep circular)
+const RadioButton = ({ label, checked, onClick }: { label: string, checked: boolean, onClick: () => void }) => (
+    <button onClick={onClick} className="flex items-center space-x-1 md:space-x-2 group focus:outline-none select-none cursor-pointer hover:opacity-90 active:scale-95 transition-transform">
+        {/* Outer Ring - flex-shrink-0 is crucial */}
+        <div className="relative w-7 h-7 md:w-8 md:h-8 rounded-full bg-gradient-to-b from-[#D1D5DB] to-[#9CA3AF] p-[1px] shadow-sm flex-shrink-0">
+             {/* White Rim */}
+            <div className="w-full h-full rounded-full bg-white p-[2px] shadow-inner">
+                 {/* Inner Color Sphere */}
+                 <div className={`
+                    w-full h-full rounded-full shadow-[inset_0_1px_2px_rgba(0,0,0,0.3)] relative
+                    ${checked 
+                        ? 'bg-gradient-to-b from-[#8BE830] to-[#55B50A]' 
+                        : 'bg-gradient-to-b from-[#F3F4F6] to-[#D1D5DB]'
+                    }
+                 `}>
+                    {/* Glossy Highlight */}
+                    {checked && <div className="absolute top-1 left-1 w-2 h-1 bg-white/60 rounded-full rotate-[-30deg] blur-[0.5px]"></div>}
+                 </div>
+            </div>
+        </div>
+        {/* Label - whitespace-nowrap */}
+        <span className={`font-bold text-sm md:text-lg tracking-wide whitespace-nowrap ${checked ? 'text-[#5D4037]' : 'text-[#A09085]'}`}>{label}</span>
+    </button>
+);
+
 export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
   const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState('新人训练员');
-  // 默认性别改为 '随机'
-  const [gender, setGender] = useState<'男' | '女' | '随机'>('随机');
+  // Default gender is now '随机'
+  const [gender, setGender] = useState<'男' | '女' | '随机'>('随机'); 
   const [availableTags, setAvailableTags] = useState<TagTemplate[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [blockedTags, setBlockedTags] = useState<string[]>([]);
+
+  const isNameEmpty = name.trim().length === 0;
 
   useEffect(() => {
     const allTags = getAvailableStartTags();
@@ -25,8 +76,6 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
     const TARGET_COUNT = 10;
     
     for (let i = 0; i < TARGET_COUNT && pool.length > 0; i++) {
-        // Calculate total weight (Inverse of Rarity: lower rarity = higher weight)
-        // Weight = 5 - Rarity (e.g., R1=4, R2=3, R3=2, R4=1)
         const totalWeight = pool.reduce((sum, t) => sum + (5 - t.稀有度), 0);
         let r = Math.random() * totalWeight;
         
@@ -39,7 +88,6 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
             }
         }
         
-        // Fallback for rounding errors
         if (foundIndex === -1) foundIndex = pool.length - 1;
         
         selected.push(pool[foundIndex]);
@@ -50,7 +98,6 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
   }, []);
 
   useEffect(() => {
-    // Recalculate blocked tags based on current selection
     const blocked: string[] = [];
     selectedTags.forEach(tagId => {
       const tag = availableTags.find(t => t.id === tagId);
@@ -72,12 +119,10 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
   };
 
   const handleStart = () => {
-    if (!name.trim()) return;
+    if (isNameEmpty) return;
     
-    // 如果是随机，在这里解析为具体的性别
     let finalGender: '男' | '女';
 
-    // 赛马娘标签强制锁定女性 (被动效果)
     if (selectedTags.includes('马娘')) {
         finalGender = '女';
     } else if (gender === '随机') {
@@ -89,7 +134,6 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
     onComplete(name, finalGender, selectedTags);
   };
 
-  // Helper for tag colors in setup screen
   const getTagColors = (tag: TagTemplate, isSelected: boolean) => {
       if (isSelected) return { title: 'text-orange-600', border: 'border-orange-400', bg: 'bg-yellow-50' };
       
@@ -111,11 +155,10 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4 font-sans bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
       
-      {/* Main Card */}
       <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full overflow-hidden border-2 border-green-400 flex flex-col max-h-[90vh]">
         
-        {/* Header */}
-        <div className="bg-[#A5D63F] p-4 text-center shadow-md relative overflow-hidden flex-shrink-0 z-10">
+        {/* Header - Keep title large */}
+        <div className="bg-[#66D814] p-4 text-center shadow-md relative overflow-hidden flex-shrink-0 z-10">
             <div className="absolute top-0 left-0 w-full h-full bg-white opacity-10 transform -skew-x-12"></div>
             <h1 className="text-2xl font-bold text-white relative z-10 tracking-widest drop-shadow-md">
                 训练员登记
@@ -123,75 +166,70 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
         </div>
 
         {step === 1 && (
-          <div className="p-8 animate-fade-in flex-1 overflow-y-auto">
+          <div className="p-6 md:p-8 pb-10 md:pb-12 animate-fade-in flex-1 overflow-y-auto flex flex-col items-center bg-white min-h-[400px]">
              
-             {/* Name Input */}
-             <div className="mb-8">
-                <label className="block text-green-800 font-bold mb-3 text-base tracking-wider">训练员姓名</label>
-                <div className="relative">
-                    <input 
-                        type="text" 
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        maxLength={10}
-                        className="w-full bg-gray-50 border-2 border-gray-300 rounded-xl py-4 px-6 text-gray-700 leading-tight focus:outline-none focus:border-green-500 transition shadow-inner font-bold text-xl"
-                        placeholder="请输入姓名"
-                    />
-                    <div className="absolute right-4 top-4 text-gray-400 text-xl">✎</div>
-                </div>
-                <p className="text-sm text-right text-gray-400 mt-2">请输入1~10个字符的内容</p>
+             {/* Subtitle - Smaller */}
+             <div className="mb-8 text-[#5D4037] font-bold text-base md:text-lg tracking-wide">
+                请输入训练员信息
              </div>
 
-             {/* Gender Selection */}
-             <div className="mb-12">
-                <label className="block text-green-800 font-bold mb-4 text-base tracking-wider">性 别</label>
-                <div className="flex justify-center gap-3">
-                    <button
-                        onClick={() => setGender('男')}
-                        className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all transform hover:scale-105 flex-1 ${
-                        gender === '男' 
-                            ? 'bg-blue-50 border-blue-500 shadow-md ring-2 ring-blue-200' 
-                            : 'bg-white border-gray-200 text-gray-400 hover:border-blue-300'
-                        }`}
-                    >
-                        <div className={`w-8 h-8 rounded-full border-4 flex-shrink-0 mb-2 ${gender === '男' ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}`}></div>
-                        <span className={`font-bold text-lg ${gender === '男' ? 'text-blue-600' : 'text-gray-500'}`}>男 性</span>
-                    </button>
-
-                    <button
-                        onClick={() => setGender('女')}
-                        className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all transform hover:scale-105 flex-1 ${
-                        gender === '女' 
-                            ? 'bg-pink-50 border-pink-500 shadow-md ring-2 ring-pink-200' 
-                            : 'bg-white border-gray-200 text-gray-400 hover:border-pink-300'
-                        }`}
-                    >
-                        <div className={`w-8 h-8 rounded-full border-4 flex-shrink-0 mb-2 ${gender === '女' ? 'border-pink-500 bg-pink-500' : 'border-gray-300'}`}></div>
-                        <span className={`font-bold text-lg ${gender === '女' ? 'text-pink-600' : 'text-gray-500'}`}>女 性</span>
-                    </button>
-
-                    <button
-                        onClick={() => setGender('随机')}
-                        className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all transform hover:scale-105 flex-1 ${
-                        gender === '随机' 
-                            ? 'bg-purple-50 border-purple-500 shadow-md ring-2 ring-purple-200' 
-                            : 'bg-white border-gray-200 text-gray-400 hover:border-purple-300'
-                        }`}
-                    >
-                        <div className={`w-8 h-8 rounded-full border-4 flex items-center justify-center flex-shrink-0 mb-2 ${gender === '随机' ? 'border-purple-500 bg-purple-500 text-white' : 'border-gray-300 text-gray-300'}`}>
-                            <span className="font-bold text-xs">?</span>
+             <div className="w-full max-w-lg space-y-5 px-1 md:px-6">
+                
+                {/* Name Input Row */}
+                <div className="flex flex-col space-y-1">
+                    <div className="flex items-center">
+                        <LabelPill>训练员姓名</LabelPill>
+                        <div className="ml-2 md:ml-3 flex-1 relative">
+                            <input 
+                                type="text" 
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                maxLength={10}
+                                className="w-full bg-white border-2 border-[#E5D5CB] rounded-lg py-1.5 pl-3 pr-8 text-[#4A3B32] font-bold text-base md:text-lg focus:outline-none focus:border-[#66D814] transition-colors shadow-sm placeholder-[#D1C2B8]"
+                                placeholder=""
+                            />
+                            {/* Pencil Icon */}
+                            <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-[#D1C2B8]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                         </div>
-                        <span className={`font-bold text-lg ${gender === '随机' ? 'text-purple-600' : 'text-gray-500'}`}>随 机</span>
-                    </button>
+                    </div>
+                    {/* Helper text - Smaller */}
+                    <div className="text-right text-[10px] md:text-xs text-[#9CA3AF] font-bold tracking-wide mr-1">
+                        请输入1~10个字符的内容
+                    </div>
                 </div>
-             </div>
 
-             <button
-                onClick={() => setStep(2)}
-                className="w-full bg-gradient-to-b from-[#A5D63F] to-[#88B828] hover:from-[#B4E44C] hover:to-[#99CC33] text-white font-bold py-4 px-6 rounded-2xl shadow-lg border-b-4 border-[#6E951E] active:border-0 active:translate-y-1 transition-all text-xl tracking-widest"
-             >
-                登 记
-             </button>
+                {/* Gender Selection Row */}
+                <div className="flex items-center">
+                     <LabelPill>性 别</LabelPill>
+                     {/* Reduced margin and spacing for mobile compatibility */}
+                     <div className="flex items-center ml-3 md:ml-6 space-x-3 md:space-x-8 flex-1 justify-start overflow-x-visible">
+                        <RadioButton label="男 性" checked={gender === '男'} onClick={() => setGender('男')} />
+                        <RadioButton label="女 性" checked={gender === '女'} onClick={() => setGender('女')} />
+                        <RadioButton label="随 机" checked={gender === '随机'} onClick={() => setGender('随机')} />
+                     </div>
+                </div>
+
+                {/* Spacer */}
+                <div className="pt-6 md:pt-8"></div>
+
+                {/* Submit Button */}
+                <div className="flex justify-center">
+                  <button
+                      onClick={() => { if(!isNameEmpty) setStep(2); }}
+                      disabled={isNameEmpty}
+                      className={`
+                          w-full max-w-xs font-black py-3 px-10 rounded-xl text-lg md:text-xl tracking-widest flex items-center justify-center border-2 transition-all
+                          ${isNameEmpty 
+                             ? 'bg-gray-400 border-gray-500 text-gray-200 shadow-none cursor-not-allowed grayscale opacity-80' 
+                             : 'bg-gradient-to-b from-[#8BE830] to-[#55B50A] hover:from-[#9BF040] hover:to-[#60C510] text-white shadow-[0_4px_0_#3F8C0B] active:shadow-none active:translate-y-1 border-[#66D814] cursor-pointer'
+                          }
+                      `}
+                   >
+                      登 记
+                   </button>
+                </div>
+
+             </div>
           </div>
         )}
 
@@ -229,6 +267,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
                             ${colors.bg} ${colors.border}
                         `}
                         >
+                        {isSelected && <SelectionFrame />}
                         <div className="w-full">
                             <div className="flex justify-between items-center mb-1">
                                 <span className={`font-bold text-base ${colors.title}`}>
@@ -240,12 +279,6 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
                                 {tag.描述}
                             </div>
                         </div>
-
-                        {isSelected && (
-                            <div className="absolute top-2 right-2 text-orange-500">
-                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                            </div>
-                        )}
                         </button>
                     );
                 })}
@@ -262,7 +295,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
                 </button>
                 <button
                     onClick={handleStart}
-                    className="flex-1 bg-gradient-to-b from-[#A5D63F] to-[#88B828] hover:from-[#B4E44C] hover:to-[#99CC33] text-white font-bold py-3 rounded-xl shadow-lg border-b-4 border-[#6E951E] active:border-0 active:translate-y-1 transition-all text-lg"
+                    className="flex-1 bg-gradient-to-b from-[#66D814] to-[#55B50A] hover:from-[#76E020] hover:to-[#60C510] text-white font-bold py-3 rounded-xl shadow-lg border-b-4 border-[#4AA00D] active:border-0 active:translate-y-1 transition-all text-lg"
                 >
                     开始育成
                 </button>

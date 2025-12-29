@@ -45,13 +45,13 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, event, character
                         <button
                             key={idx}
                             onClick={() => onSelectOption(idx, opt.显示文本)}
-                            className="w-full text-left p-4 rounded-xl border-2 border-gray-100 hover:border-green-500 hover:bg-green-50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 group shadow-sm"
+                            className="w-full text-left p-4 rounded-xl border-2 border-gray-100 hover:border-[#16A34A] hover:bg-[#16A34A] hover:text-white hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 group shadow-sm"
                         >
                             <div className="flex items-center">
-                                <span className="bg-gray-200 group-hover:bg-green-500 group-hover:text-white text-gray-600 w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold mr-3 transition-colors">
+                                <span className="bg-gray-200 text-gray-600 group-hover:bg-white group-hover:text-[#16A34A] w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold mr-3 transition-colors">
                                     {idx + 1}
                                 </span>
-                                <span className="font-bold text-gray-700 group-hover:text-green-800">
+                                <span className="font-bold text-gray-700 group-hover:text-white">
                                     {opt.显示文本}
                                 </span>
                             </div>
