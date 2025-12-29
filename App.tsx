@@ -397,10 +397,11 @@ function App() {
   return (
     <div className="flex flex-col md:flex-row h-screen w-full overflow-hidden bg-white">
         
-        <div className="md:hidden flex-shrink-0 bg-white border-b border-gray-200 p-3 shadow-sm flex justify-center items-center z-20">
+        <div className="md:hidden flex-shrink-0 bg-white border-b border-gray-200 p-3 shadow-sm flex justify-center items-center z-20 relative">
              <div className="px-4 py-1 rounded-full border border-green-400 bg-green-50">
                 <span className="font-bold text-green-700 text-base">{getTurnDate(gameState.currentTurn)}</span>
              </div>
+             <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-mono">v0.1.251230</div>
         </div>
 
         <div className="hidden md:flex md:w-96 flex-shrink-0 h-full z-10">
@@ -413,6 +414,7 @@ function App() {
         <div className="flex-1 flex flex-col h-full relative overflow-hidden">
             <div className="hidden md:flex p-4 border-b bg-white shadow-sm justify-between items-center z-20 flex-shrink-0">
                 <h1 className="text-xl font-bold text-gray-800">怪文书模拟器</h1>
+                <span className="text-xs text-gray-400 font-mono select-none">v0.1.251230</span>
             </div>
 
             <div className="flex-1 overflow-y-auto flex flex-col w-full">

@@ -654,8 +654,22 @@ export const executeAction = (
 
     if (cmd === '属性变更') {
       const attr = parts[argsStartIndex];
-      const val = evalValue(parts[argsStartIndex + 1]);
+      let val = evalValue(parts[argsStartIndex + 1]);
       
+      // 天才特质效果
+      if (val > 0 && subject.标签组.some(t => t.templateId === '天才') && subject.通用属性.精力 > 50) {
+          if (attr === '学识') {
+              val += 1;
+          } else if (attr === '智慧') {
+              val = Math.floor(val * 1.2);
+          }
+      }
+
+      // 木头特质效果
+      if (attr === '爱欲' && val > 0 && subject.标签组.some(t => t.templateId === '木头')) {
+          val = Math.floor(val * 0.2);
+      }
+
       const isSurvival = ['体力', '心情', '精力', '爱欲'].includes(attr);
       const isBasic = ['体质', '学识', '魅力', '财富'].includes(attr);
       
@@ -687,9 +701,18 @@ export const executeAction = (
     } 
     else if (cmd === '训练员属性变更') {
        const attr = parts[argsStartIndex];
-       const val = evalValue(parts[argsStartIndex + 1]);
+       let val = evalValue(parts[argsStartIndex + 1]);
        const trainer = allChars.find(c => c.templateId === '训练员' || c.instanceId === 'p1');
        if (trainer) {
+          // 天才特质效果 (Trainer)
+          if (val > 0 && trainer.标签组.some(t => t.templateId === '天才') && trainer.通用属性.精力 > 50) {
+              if (attr === '学识') {
+                  val += 1;
+              } else if (attr === '智慧') {
+                  val = Math.floor(val * 1.2);
+              }
+          }
+
           const isSurvival = ['体力', '心情', '精力', '爱欲'].includes(attr);
           const isBasic = ['体质', '学识', '魅力', '财富'].includes(attr);
           // @ts-ignore
