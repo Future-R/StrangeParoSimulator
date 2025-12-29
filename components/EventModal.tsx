@@ -1,6 +1,7 @@
 
 import React from 'react';
-import { GameEvent } from '../types';
+import { GameEvent, RuntimeCharacter } from '../types';
+import { parseText } from '../services/engine';
 
 interface EventModalProps {
   isOpen: boolean;
@@ -8,10 +9,16 @@ interface EventModalProps {
   characterName: string;
   parsedTitle?: string; 
   parsedText?: string;  
+  variables?: Record<string, any>;
+  characters: RuntimeCharacter[];
+  currentTurn: number;
   onSelectOption: (optionIndex: number, displayText: string) => void;
 }
 
-export const EventModal: React.FC<EventModalProps> = ({ isOpen, event, characterName, parsedTitle, parsedText, onSelectOption }) => {
+export const EventModal: React.FC<EventModalProps> = ({ 
+    isOpen, event, characterName, parsedTitle, parsedText, 
+    variables, characters, currentTurn, onSelectOption 
+}) => {
   if (!isOpen || !event) return null;
 
   // Ensure default fallback uses parsing logic or simple replacement, and convert newlines to <br/>
@@ -20,6 +27,9 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, event, character
   const bodyContent = rawBodyContent.replace(/\n/g, '<br/>');
 
   const hasOptions = event.选项组 && event.选项组.length > 0;
+  
+  // Find current character for context if possible
+  const currentChar = characters.find(c => c.名称 === characterName) || characters[0];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 backdrop-blur-sm transition-opacity duration-300">
@@ -41,22 +51,26 @@ export const EventModal: React.FC<EventModalProps> = ({ isOpen, event, character
             
             <div className="space-y-3">
                 {hasOptions ? (
-                    event.选项组!.map((opt, idx) => (
-                        <button
-                            key={idx}
-                            onClick={() => onSelectOption(idx, opt.显示文本)}
-                            className="w-full text-left p-4 rounded-xl border-2 border-gray-100 hover:border-[#16A34A] hover:bg-[#16A34A] hover:text-white hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 group shadow-sm"
-                        >
-                            <div className="flex items-center">
-                                <span className="bg-gray-200 text-gray-600 group-hover:bg-white group-hover:text-[#16A34A] w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold mr-3 transition-colors">
-                                    {idx + 1}
-                                </span>
-                                <span className="font-bold text-gray-700 group-hover:text-white">
-                                    {opt.显示文本}
-                                </span>
-                            </div>
-                        </button>
-                    ))
+                    event.选项组!.map((opt, idx) => {
+                        // Parse option text to support variables like {OptionA.Name}
+                        const displayText = parseText(opt.显示文本, currentChar, currentTurn, characters, variables);
+                        return (
+                            <button
+                                key={idx}
+                                onClick={() => onSelectOption(idx, displayText)}
+                                className="w-full text-left p-4 rounded-xl border-2 border-gray-100 hover:border-[#16A34A] hover:bg-[#16A34A] hover:text-white hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 group shadow-sm"
+                            >
+                                <div className="flex items-center">
+                                    <span className="bg-gray-200 text-gray-600 group-hover:bg-white group-hover:text-[#16A34A] w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold mr-3 transition-colors">
+                                        {idx + 1}
+                                    </span>
+                                    <span className="font-bold text-gray-700 group-hover:text-white">
+                                        {displayText}
+                                    </span>
+                                </div>
+                            </button>
+                        );
+                    })
                 ) : (
                     <button
                         onClick={() => onSelectOption(-1, '继续')}

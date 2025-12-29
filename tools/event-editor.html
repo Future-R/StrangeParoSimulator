@@ -1,0 +1,568 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TS 事件数据编辑器 v3.0 (Ultimate)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #1e1e1e;
+            --sidebar-bg: #252526;
+            --item-bg: #333333;
+            --item-hover: #2a2d2e;
+            --text-color: #cccccc;
+            --accent-color: #0e639c;
+            --success-color: #3fb950;
+            --border-color: #454545;
+            --input-bg: #3c3c3c;
+            --input-fg: #cccccc;
+            
+            --syntax-id: #4fc1ff;
+            --syntax-string: #ce9178;
+            --syntax-comment: #6a9955;
+            --syntax-keyword: #569cd6;
+        }
+
+        body { 
+            background-color: var(--bg-color); 
+            color: var(--text-color); 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 0; 
+            overflow: hidden; 
+        }
+
+        /* --- Custom Scrollbar --- */
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-track { background: var(--bg-color); }
+        ::-webkit-scrollbar-thumb { background: #424242; }
+        ::-webkit-scrollbar-thumb:hover { background: #4f4f4f; }
+        ::-webkit-scrollbar-corner { background: var(--bg-color); }
+
+        /* --- Components --- */
+        .sidebar { background-color: var(--sidebar-bg); border-right: 1px solid var(--border-color); }
+        .editor-panel { background-color: var(--bg-color); }
+        
+        .list-item {
+            cursor: pointer;
+            border: 1px solid transparent; /* Placeholder for border */
+        }
+        .list-item:hover { background-color: var(--item-hover); }
+        .list-item.active { 
+            background-color: #37373d; 
+            color: white; 
+            border-left: 3px solid var(--accent-color);
+        }
+
+        .event-item {
+            background-color: var(--bg-color);
+            border-bottom: 1px solid #2d2d2d;
+        }
+        .event-item:hover { background-color: var(--item-hover); }
+        .event-item.active { 
+            background-color: #2a2d2e; 
+            border-left: 3px solid var(--accent-color);
+        }
+
+        /* Form Controls */
+        label { 
+            display: block; 
+            margin-bottom: 4px; 
+            color: #999; 
+            font-size: 0.85rem; 
+            font-weight: 600;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 6px 8px;
+            background-color: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: var(--input-fg);
+            border-radius: 2px;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.1s;
+        }
+        .form-control:focus {
+            border-color: var(--accent-color);
+        }
+        
+        textarea.form-control {
+            font-family: Consolas, "Courier New", monospace;
+            line-height: 1.4;
+            min-height: 80px;
+        }
+
+        /* Syntax Highlighting Utilities */
+        .text-id { color: var(--syntax-id) !important; font-family: Consolas, monospace; }
+        .text-logic { color: var(--syntax-string) !important; font-family: Consolas, monospace; }
+        .text-comment { color: var(--syntax-comment) !important; }
+        .text-keyword { color: var(--syntax-keyword) !important; font-weight: bold; }
+
+        /* Array Container */
+        .array-container {
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 4px;
+        }
+        
+        .array-item {
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            margin-bottom: 8px;
+            position: relative;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 4px 12px;
+            border-radius: 2px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            border: none;
+            color: white;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-primary { background-color: var(--accent-color); }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-success { background-color: var(--success-color); }
+        .btn-success:hover { opacity: 0.9; }
+        .btn-danger { background-color: #a12626; }
+        .btn-danger:hover { opacity: 0.9; }
+        .btn-icon { background: transparent; color: #aaa; padding: 4px; }
+        .btn-icon:hover { color: white; background-color: rgba(255,255,255,0.1); }
+
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- Core Logic (Robust Parsing) ---
+
+        const parseTSContent = (content) => {
+            try {
+                // Extract imports
+                const importMatch = content.match(/([\s\S]*?)export const/);
+                const imports = importMatch ? importMatch[1] : "import { GameEvent } from '../../types';";
+
+                // Extract Variable Name
+                const varMatch = content.match(/export const\s+(\w+)\s*:\s*GameEvent\[\]\s*=\s*\[/);
+                const varName = varMatch ? varMatch[1] : 'EVENTS';
+
+                // Extract Array Body safely
+                const startIdx = content.indexOf('[');
+                const endIdx = content.lastIndexOf(']');
+                
+                if (startIdx === -1 || endIdx === -1) throw new Error("无法解析数组结构");
+
+                const arrayStr = content.substring(startIdx, endIdx + 1);
+                const events = new Function(`return ${arrayStr}`)();
+
+                return { imports, varName, events };
+            } catch (e) {
+                console.error(e);
+                return null;
+            }
+        };
+
+        const toTSString = (obj, indentLevel = 0) => {
+            const indent = '  '.repeat(indentLevel);
+            const childIndent = '  '.repeat(indentLevel + 1);
+
+            if (Array.isArray(obj)) {
+                if (obj.length === 0) return '[]';
+                const items = obj.map(item => toTSString(item, indentLevel + 1)).join(',\n' + childIndent);
+                return `[\n${childIndent}${items}\n${indent}]`;
+            } else if (typeof obj === 'object' && obj !== null) {
+                const entries = Object.entries(obj).filter(([k,v]) => v !== undefined && v !== null && v !== '');
+                if (entries.length === 0) return '{}';
+                
+                const lines = entries.map(([key, value]) => {
+                    const safeKey = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(key) ? key : `'${key}'`;
+                    return `${safeKey}: ${toTSString(value, indentLevel + 1)}`;
+                });
+                return `{\n${childIndent}${lines.join(',\n' + childIndent)}\n${indent}}`;
+            } else if (typeof obj === 'string') {
+                const cleanStr = obj.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, "\\n");
+                return `'${cleanStr}'`;
+            } else {
+                return String(obj);
+            }
+        };
+
+        const generateFileContent = (fileData) => {
+            const eventsTS = toTSString(fileData.events, 1);
+            return `${fileData.imports.trim()}\n\nexport const ${fileData.varName}: GameEvent[] = ${eventsTS};\n`;
+        };
+
+        // --- App Component ---
+
+        const App = () => {
+            const [files, setFiles] = useState([]); // { name, imports, varName, events }[]
+            const [activeFileIndex, setActiveFileIndex] = useState(-1);
+            const [activeEventIndex, setActiveEventIndex] = useState(-1);
+            const [filter, setFilter] = useState('');
+            const fileInputRef = useRef(null);
+
+            const activeFile = activeFileIndex >= 0 ? files[activeFileIndex] : null;
+            const activeEvent = (activeFile && activeEventIndex >= 0) ? activeFile.events[activeEventIndex] : null;
+
+            // --- File Handlers ---
+            const handleFileUpload = (e) => {
+                const uploadedFiles = Array.from(e.target.files);
+                uploadedFiles.forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        const content = ev.target.result;
+                        const result = parseTSContent(content);
+                        if (result) {
+                            setFiles(prev => {
+                                const idx = prev.findIndex(f => f.name === file.name);
+                                if (idx !== -1) {
+                                    const next = [...prev];
+                                    next[idx] = { name: file.name, ...result };
+                                    return next;
+                                }
+                                return [...prev, { name: file.name, ...result }];
+                            });
+                            if (activeFileIndex === -1) setActiveFileIndex(0); 
+                        } else {
+                            alert(`解析 ${file.name} 失败`);
+                        }
+                    };
+                    reader.readAsText(file);
+                });
+                e.target.value = null; 
+            };
+
+            const handleSave = (index) => {
+                const file = files[index];
+                const content = generateFileContent(file);
+                const blob = new Blob([content], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = file.name;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            };
+
+            // --- Event Handlers ---
+            const updateEvent = (field, value) => {
+                if (!activeFile || !activeEvent) return;
+                const newEvents = [...activeFile.events];
+                newEvents[activeEventIndex] = { ...activeEvent, [field]: value };
+                
+                const newFiles = [...files];
+                newFiles[activeFileIndex] = { ...activeFile, events: newEvents };
+                setFiles(newFiles);
+            };
+
+             // Specialized updaters for nested arrays
+            const updateOption = (idx, field, value) => {
+                const opts = [...(activeEvent.选项组 || [])];
+                opts[idx] = { ...opts[idx], [field]: value };
+                updateEvent('选项组', opts);
+            };
+
+            const updateBranch = (idx, field, value) => {
+                const brs = [...(activeEvent.分支组 || [])];
+                brs[idx] = { ...brs[idx], [field]: value };
+                updateEvent('分支组', brs);
+            };
+            
+            // --- Helper to add/remove ---
+            const addEvent = () => {
+                 if (!activeFile) return;
+                 const newEvent = {
+                    id: 'new_event_' + Date.now(),
+                    权重: 50, 可触发次数: 1, 标签组: [],
+                    触发条件: '', 标题: '新事件', 正文: '', 选项组: []
+                };
+                const newEvents = [...activeFile.events, newEvent];
+                const newFiles = [...files];
+                newFiles[activeFileIndex] = { ...activeFile, events: newEvents };
+                setFiles(newFiles);
+                setActiveEventIndex(newEvents.length - 1);
+            };
+
+            const filteredEvents = useMemo(() => {
+                if (!activeFile) return [];
+                if (!filter) return activeFile.events.map((e, i) => ({...e, _idx: i}));
+                const lower = filter.toLowerCase();
+                return activeFile.events
+                    .map((e, i) => ({...e, _idx: i}))
+                    .filter(e => e.id.toLowerCase().includes(lower) || (e.标题 && e.标题.includes(filter)) || (e.正文 && e.正文.includes(filter)));
+            }, [activeFile, filter]);
+
+            return (
+                <div className="flex h-screen w-full">
+                    <input type="file" multiple accept=".ts" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+
+                    {/* --- Sidebar (Files) --- */}
+                    <div className="sidebar w-64 flex flex-col flex-shrink-0">
+                        <div className="p-3 border-b border-[#333] flex justify-between items-center">
+                            <span className="text-xs font-bold uppercase tracking-wider text-gray-500">资源管理器</span>
+                            <button className="btn-icon" onClick={() => fileInputRef.current.click()} title="打开文件">
+                                <i className="fas fa-folder-plus"></i>
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto">
+                            {files.map((f, idx) => (
+                                <div 
+                                    key={idx}
+                                    onClick={() => { setActiveFileIndex(idx); setActiveEventIndex(-1); setFilter(''); }}
+                                    className={`list-item py-1.5 px-3 flex justify-between items-center group text-sm ${idx === activeFileIndex ? 'active' : ''}`}
+                                >
+                                    <span className="truncate flex items-center gap-2">
+                                        <i className="fas fa-file-code text-keyword text-xs"></i> 
+                                        {f.name}
+                                    </span>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); handleSave(idx); }}
+                                        className="btn-icon opacity-0 group-hover:opacity-100" 
+                                        title="保存"
+                                    >
+                                        <i className="fas fa-save"></i>
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* --- Event List --- */}
+                    <div className="w-80 border-r border-[#333] flex flex-col flex-shrink-0 bg-[#1e1e1e]">
+                        <div className="p-3 border-b border-[#333] flex gap-2">
+                            <input 
+                                className="form-control"
+                                placeholder="搜索事件..."
+                                value={filter}
+                                onChange={e => setFilter(e.target.value)}
+                            />
+                            <button className="btn btn-success" onClick={addEvent}>+</button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto">
+                            {activeFile ? filteredEvents.map((e) => (
+                                <div 
+                                    key={e.id}
+                                    onClick={() => setActiveEventIndex(e._idx)}
+                                    className={`event-item p-2.5 cursor-pointer ${activeEventIndex === e._idx ? 'active' : ''}`}
+                                >
+                                    <div className="font-bold text-sm mb-0.5 text-[#e0e0e0] truncate">{e.标题 || '(无标题)'}</div>
+                                    <div className="text-xs font-mono text-id truncate mb-1">{e.id}</div>
+                                    <div className="text-xs text-gray-500 truncate">{(e.正文 || '').substring(0, 30)}</div>
+                                </div>
+                            )) : (
+                                <div className="p-4 text-center text-gray-500 text-sm">请先打开文件</div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* --- Editor --- */}
+                    <div className="flex-1 overflow-y-auto p-6 bg-[#1e1e1e]">
+                        {activeEvent ? (
+                            <div className="max-w-5xl mx-auto pb-20">
+                                {/* Header */}
+                                <div className="flex justify-between items-start mb-6 border-b border-[#333] pb-4">
+                                    <div className="flex items-center gap-3">
+                                        <i className="fas fa-edit text-accent-color text-xl"></i>
+                                        <h2 className="text-xl font-bold text-white tracking-tight">{activeEvent.id}</h2>
+                                    </div>
+                                    <button 
+                                        className="btn btn-danger"
+                                        onClick={() => {
+                                            if(confirm('Delete?')) {
+                                                const newEvents = activeFile.events.filter((_, i) => i !== activeEventIndex);
+                                                const newFiles = [...files];
+                                                newFiles[activeFileIndex] = { ...activeFile, events: newEvents };
+                                                setFiles(newFiles);
+                                                setActiveEventIndex(-1);
+                                            }
+                                        }}
+                                    >
+                                        删除事件
+                                    </button>
+                                </div>
+
+                                {/* Form Grid */}
+                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <label>ID (Unique Identifier)</label>
+                                        <input 
+                                            className="form-control text-id font-bold" 
+                                            value={activeEvent.id} 
+                                            onChange={e => updateEvent('id', e.target.value)} 
+                                        />
+                                    </div>
+                                    <div>
+                                        <label>标题 (Title)</label>
+                                        <input 
+                                            className="form-control font-bold" 
+                                            value={activeEvent.标题 || ''} 
+                                            onChange={e => updateEvent('标题', e.target.value)} 
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-4 gap-4 mb-4">
+                                    <div>
+                                        <label>权重 (Weight)</label>
+                                        <input type="number" className="form-control" value={activeEvent.权重} onChange={e => updateEvent('权重', parseInt(e.target.value)||0)} />
+                                    </div>
+                                    <div>
+                                        <label>次数 (-1无限)</label>
+                                        <input type="number" className="form-control" value={activeEvent.可触发次数} onChange={e => updateEvent('可触发次数', parseInt(e.target.value)||0)} />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label>标签组 (Tags)</label>
+                                        <input 
+                                            className="form-control"
+                                            value={(activeEvent.标签组 || []).join(', ')} 
+                                            onChange={e => updateEvent('标签组', e.target.value.split(/[,，]/).map(s=>s.trim()).filter(Boolean))} 
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="mb-4">
+                                    <label>触发条件 (Trigger Condition)</label>
+                                    <textarea 
+                                        className="form-control text-logic" 
+                                        value={activeEvent.触发条件 || ''} 
+                                        onChange={e => updateEvent('触发条件', e.target.value)} 
+                                    />
+                                </div>
+                                
+                                <div className="mb-4">
+                                    <label>预操作指令 (Pre-Action)</label>
+                                    <input 
+                                        className="form-control font-mono" 
+                                        value={activeEvent.预操作指令 || ''} 
+                                        onChange={e => updateEvent('预操作指令', e.target.value)} 
+                                    />
+                                </div>
+
+                                <div className="mb-4">
+                                    <label>正文内容 (Body)</label>
+                                    <textarea 
+                                        className="form-control" 
+                                        style={{ height: '120px', fontSize: '15px' }}
+                                        value={activeEvent.正文 || ''} 
+                                        onChange={e => updateEvent('正文', e.target.value)} 
+                                    />
+                                </div>
+
+                                <div className="mb-6">
+                                    <label>默认操作指令 (Default Action)</label>
+                                    <input 
+                                        className="form-control font-mono" 
+                                        value={activeEvent.操作指令 || ''} 
+                                        onChange={e => updateEvent('操作指令', e.target.value)} 
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                                    {/* Options */}
+                                    <div>
+                                        <div className="flex justify-between items-center mb-2">
+                                            <label className="mb-0">选项组 (Options)</label>
+                                            <button 
+                                                className="btn btn-success"
+                                                onClick={() => {
+                                                    const opts = activeEvent.选项组 || [];
+                                                    updateEvent('选项组', [...opts, { 显示文本: '新选项', 操作指令: '' }]);
+                                                }}
+                                            >+ 添加</button>
+                                        </div>
+                                        <div className="array-container">
+                                            {(activeEvent.选项组 || []).length === 0 && <div className="text-gray-500 text-center text-sm py-2">无选项</div>}
+                                            {(activeEvent.选项组 || []).map((opt, idx) => (
+                                                <div key={idx} className="array-item">
+                                                    <div className="flex justify-between mb-2">
+                                                        <span className="text-xs font-bold text-gray-500">选项 {idx+1}</span>
+                                                        <button className="btn-icon text-red-400" onClick={() => {
+                                                            const opts = activeEvent.选项组.filter((_, i) => i !== idx);
+                                                            updateEvent('选项组', opts);
+                                                        }}><i className="fas fa-times"></i></button>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-2 mb-2">
+                                                        <input className="form-control" placeholder="显示文本" value={opt.显示文本} onChange={e => updateOption(idx, '显示文本', e.target.value)} />
+                                                        <input className="form-control font-mono text-xs" placeholder="跳转ID" value={opt.跳转 || ''} onChange={e => updateOption(idx, '跳转', e.target.value)} />
+                                                    </div>
+                                                    <input className="form-control font-mono text-xs" placeholder="操作指令" value={opt.操作指令} onChange={e => updateOption(idx, '操作指令', e.target.value)} />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Branches */}
+                                    <div>
+                                        <div className="flex justify-between items-center mb-2">
+                                            <label className="mb-0">分支组 (Branches)</label>
+                                            <button 
+                                                className="btn btn-success"
+                                                onClick={() => {
+                                                    const brs = activeEvent.分支组 || [];
+                                                    updateEvent('分支组', [...brs, { 判别式: 'true', 操作指令: '' }]);
+                                                }}
+                                            >+ 添加</button>
+                                        </div>
+                                        <div className="array-container">
+                                            {(activeEvent.分支组 || []).length === 0 && <div className="text-gray-500 text-center text-sm py-2">无分支</div>}
+                                            {(activeEvent.分支组 || []).map((br, idx) => (
+                                                <div key={idx} className="array-item">
+                                                    <div className="flex justify-between mb-2">
+                                                        <span className="text-xs font-bold text-gray-500">分支 {idx+1}</span>
+                                                        <button className="btn-icon text-red-400" onClick={() => {
+                                                            const brs = activeEvent.分支组.filter((_, i) => i !== idx);
+                                                            updateEvent('分支组', brs);
+                                                        }}><i className="fas fa-times"></i></button>
+                                                    </div>
+                                                    <div className="mb-2">
+                                                        <input className="form-control text-logic text-xs" placeholder="判别式" value={br.判别式} onChange={e => updateBranch(idx, '判别式', e.target.value)} />
+                                                    </div>
+                                                    <div className="mb-2">
+                                                        <input className="form-control font-mono text-xs" placeholder="操作指令" value={br.操作指令} onChange={e => updateBranch(idx, '操作指令', e.target.value)} />
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <input className="form-control font-mono text-xs" placeholder="跳转ID" value={br.跳转事件ID || ''} onChange={e => updateBranch(idx, '跳转事件ID', e.target.value)} />
+                                                        <input className="form-control text-comment text-xs" placeholder="注释" value={br.注释 || ''} onChange={e => updateBranch(idx, '注释', e.target.value)} />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="h-full flex flex-col items-center justify-center text-[#555]">
+                                <i className="fas fa-code text-5xl mb-4 opacity-50"></i>
+                                <p className="text-lg">请从列表选择一个事件进行编辑</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

@@ -95,6 +95,18 @@ const resolveTargetCharacter = (key: string, current: RuntimeCharacter, allChars
     return allChars.find(c => c.instanceId === key || c.名称 === key);
 };
 
+// 辅助函数：解析数值，支持 "随机(min~max)" 或纯数字
+const evalValue = (valStr: string): number => {
+    if (!valStr) return 0;
+    const randomMatch = valStr.match(/随机\((-?\d+)~(\-?\d+)\)/);
+    if (randomMatch) {
+        const min = parseInt(randomMatch[1]);
+        const max = parseInt(randomMatch[2]);
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+    return parseInt(valStr) || 0;
+};
+
 // 增强判别：支持 choiceIndex, 关系判断, 以及训练员属性判断, 变量判断, 日期判断
 export const checkCondition = (condition: string, char: RuntimeCharacter, turn: number, choiceIndex?: number, allChars: RuntimeCharacter[] = [], variables?: Record<string, any>): boolean => {
   if (!condition || condition.trim() === '') return true;
@@ -548,6 +560,13 @@ export const executeAction = (
                     const randomMate = others[Math.floor(Math.random() * others.length)];
                     currentVariables[key] = randomMate.instanceId;
                 }
+            } else if (func.trim() === '获取随机全员角色()') {
+                // New: Get random char from ALL characters (including not in team), excluding self
+                const others = allChars.filter(c => c.instanceId !== char.instanceId); 
+                if (others.length > 0) {
+                    const randomChar = others[Math.floor(Math.random() * others.length)];
+                    currentVariables[key] = randomChar.instanceId;
+                }
             }
         }
         return;
@@ -585,7 +604,7 @@ export const executeAction = (
         if (args.length === 3) {
             const subject = resolveTargetCharacter(args[0], char, allChars, currentVariables);
             let targetKey = 'p1';
-            const val = parseInt(args[2]);
+            const val = evalValue(args[2]);
 
             if (subject) {
                  if (!subject.关系列表[targetKey]) subject.关系列表[targetKey] = { 友情: 0, 爱情: 0 };
@@ -597,7 +616,7 @@ export const executeAction = (
                const type = args[0] as '友情' | '爱情';
                const subject = resolveTargetCharacter(args[1], char, allChars, currentVariables);
                const target = resolveTargetCharacter(args[2], char, allChars, currentVariables);
-               const val = parseInt(args[3]);
+               const val = evalValue(args[3]);
                
                if (subject && target) {
                    const targetId = target.instanceId;
@@ -634,7 +653,7 @@ export const executeAction = (
 
     if (cmd === '属性变更') {
       const attr = parts[argsStartIndex];
-      const val = parseInt(parts[argsStartIndex + 1]);
+      const val = evalValue(parts[argsStartIndex + 1]);
       
       const isSurvival = ['体力', '心情', '精力', '爱欲'].includes(attr);
       const isBasic = ['体质', '学识', '魅力', '财富'].includes(attr);
@@ -667,7 +686,7 @@ export const executeAction = (
     } 
     else if (cmd === '训练员属性变更') {
        const attr = parts[argsStartIndex];
-       const val = parseInt(parts[argsStartIndex + 1]);
+       const val = evalValue(parts[argsStartIndex + 1]);
        const trainer = allChars.find(c => c.templateId === '训练员' || c.instanceId === 'p1');
        if (trainer) {
           const isSurvival = ['体力', '心情', '精力', '爱欲'].includes(attr);
@@ -721,7 +740,7 @@ export const executeAction = (
     }
     else if (cmd === '关系变更') {
         const type = parts[argsStartIndex] as '友情' | '爱情';
-        let val = parseInt(parts[argsStartIndex + 1]);
+        let val = evalValue(parts[argsStartIndex + 1]);
         const targetId = 'p1'; 
         
         if (type === '爱情' && val > 0 && subject.标签组.some(t => t.templateId === '木头')) {

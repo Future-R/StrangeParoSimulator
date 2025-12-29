@@ -170,6 +170,7 @@ function App() {
             : "";
         
         if (optionIndex !== -1) {
+            // Need to parse option text again here for log to be correct if variables used
             const parsedDisplayText = parseText(displayText, char, prev.currentTurn, newCharacters, variables);
             newLogs.push({
                 turn: prev.currentTurn,
@@ -335,7 +336,11 @@ function App() {
             if (!isNaN(key) && key >= 1 && key <= 9) {
                 const event = gameState.pendingEvents[0].event;
                 if (event.选项组 && event.选项组.length >= key) {
-                    handleOptionSelect(key - 1, event.选项组[key-1].显示文本);
+                    // We need to parse text here too technically, but handleOptionSelect will re-parse for log
+                    // However, we need the raw text to match what's on screen if we want accuracy.
+                    // But handleOptionSelect takes index, the text is for logging.
+                    const rawText = gameState.pendingEvents[0].event.选项组[key-1].显示文本;
+                    handleOptionSelect(key - 1, rawText);
                 }
             }
             return;
@@ -429,6 +434,9 @@ function App() {
             characterName={currentPendingChar?.名称 || ''}
             parsedTitle={parsedModalTitle}
             parsedText={parsedModalText}
+            variables={currentPendingEvent?.variables}
+            characters={gameState.characters}
+            currentTurn={gameState.currentTurn}
             onSelectOption={handleOptionSelect}
         />
 
