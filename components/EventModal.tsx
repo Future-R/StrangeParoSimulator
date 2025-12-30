@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { GameEvent, RuntimeCharacter } from '../types';
-import { parseText } from '../services/engine';
+import { parseText, checkCondition } from '../services/engine';
 
 interface EventModalProps {
   isOpen: boolean;
@@ -26,10 +26,16 @@ export const EventModal: React.FC<EventModalProps> = ({
   const rawBodyContent = parsedText || event.正文.replace(/{当前角色\.名称}/g, characterName);
   const bodyContent = rawBodyContent.replace(/\n/g, '<br/>');
 
-  const hasOptions = event.选项组 && event.选项组.length > 0;
-  
   // Find current character for context if possible
   const currentChar = characters.find(c => c.名称 === characterName) || characters[0];
+
+  const hasOptions = event.选项组 && event.选项组.length > 0;
+  
+  // Filter options based on visibleCondition
+  const visibleOptions = event.选项组?.map((opt, originalIndex) => ({...opt, originalIndex})).filter(opt => {
+      if (!opt.可见条件) return true;
+      return checkCondition(opt.可见条件, currentChar, currentTurn, undefined, characters, variables);
+  }) || [];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 backdrop-blur-sm transition-opacity duration-300">
@@ -50,14 +56,14 @@ export const EventModal: React.FC<EventModalProps> = ({
             </div>
             
             <div className="space-y-3">
-                {hasOptions ? (
-                    event.选项组!.map((opt, idx) => {
+                {hasOptions && visibleOptions.length > 0 ? (
+                    visibleOptions.map((opt, idx) => {
                         // Parse option text to support variables like {OptionA.Name}
                         const displayText = parseText(opt.显示文本, currentChar, currentTurn, characters, variables);
                         return (
                             <button
-                                key={idx}
-                                onClick={() => onSelectOption(idx, displayText)}
+                                key={opt.originalIndex}
+                                onClick={() => onSelectOption(opt.originalIndex, displayText)}
                                 className="w-full text-left p-4 rounded-xl border-2 border-gray-100 hover:border-[#16A34A] hover:bg-[#16A34A] hover:text-white hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 group shadow-sm"
                             >
                                 <div className="flex items-center">

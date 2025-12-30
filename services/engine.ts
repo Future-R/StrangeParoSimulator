@@ -85,14 +85,19 @@ const resolveTargetCharacter = (key: string, current: RuntimeCharacter, allChars
     if (key === '当前角色') return current;
     if (key === '训练员') return allChars.find(c => c.templateId === '训练员' || c.instanceId === 'p1');
     if (key === '玩家') return allChars.find(c => c.instanceId === 'p1');
+    
+    // Check for "Template ID" or "Name" match directly (e.g. "优秀素质")
+    const byTemplate = allChars.find(c => c.templateId === key || c.名称 === key);
+    if (byTemplate) return byTemplate;
+
     if (variables && variables[key]) {
         // Assume variable stores instanceId for characters (string)
         if (typeof variables[key] === 'string' && (variables[key].startsWith('c') || variables[key].startsWith('p') || variables[key].startsWith('npc'))) {
              return allChars.find(c => c.instanceId === variables[key]);
         }
     }
-    // Try find by ID directly or Name
-    return allChars.find(c => c.instanceId === key || c.名称 === key);
+    // Try find by ID directly
+    return allChars.find(c => c.instanceId === key);
 };
 
 // 辅助函数：解析数值，支持 "随机(min~max)" 或纯数字
@@ -597,7 +602,44 @@ export const executeAction = (
         return;
     }
 
-    // 3. 关系变更
+    // New: 双向关系变更
+    if (action.startsWith('双向关系变更')) {
+        // 双向关系变更(友情, 角色A/角色B/"优秀素质"/角色D, 10)
+        const match = action.match(/双向关系变更\(([^,]+),\s*(.+?),\s*(-?\d+)\)/);
+        if (match) {
+            const type = match[1] as '友情' | '爱情';
+            const targetsStr = match[2];
+            const val = evalValue(match[3]);
+            
+            const rawNames = targetsStr.split('/').map(s => s.trim().replace(/"/g, ''));
+            const resolvedChars: RuntimeCharacter[] = [];
+
+            // Resolve all characters first
+            rawNames.forEach(name => {
+                const c = resolveTargetCharacter(name, char, allChars, currentVariables);
+                if (c) resolvedChars.push(c);
+            });
+
+            // Permutate and apply
+            for (let i = 0; i < resolvedChars.length; i++) {
+                for (let j = i + 1; j < resolvedChars.length; j++) {
+                    const charA = resolvedChars[i];
+                    const charB = resolvedChars[j];
+
+                    // A -> B
+                    if (!charA.关系列表[charB.instanceId]) charA.关系列表[charB.instanceId] = { 友情: 0, 爱情: 0 };
+                    charA.关系列表[charB.instanceId][type] = Math.max(0, Math.min(100, charA.关系列表[charB.instanceId][type] + val));
+
+                    // B -> A
+                    if (!charB.关系列表[charA.instanceId]) charB.关系列表[charA.instanceId] = { 友情: 0, 爱情: 0 };
+                    charB.关系列表[charA.instanceId][type] = Math.max(0, Math.min(100, charB.关系列表[charA.instanceId][type] + val));
+                }
+            }
+        }
+        return;
+    }
+
+    // 3. 关系变更 (单向)
     if (action.startsWith('关系变更(')) {
         const content = action.substring(action.indexOf('(') + 1, action.lastIndexOf(')'));
         const args = content.split(',').map(s => s.trim());

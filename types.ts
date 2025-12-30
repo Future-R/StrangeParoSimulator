@@ -103,6 +103,7 @@ export interface RuntimeCharacter {
 // 选项对象
 export interface EventOption {
   显示文本: string;
+  可见条件?: string; // 新增：用于判断该选项是否显示
   操作指令: string; 
 }
 
