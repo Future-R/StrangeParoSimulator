@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { GameEvent, RuntimeCharacter } from '../types';
 import { parseText, checkCondition } from '../services/engine';
 
@@ -20,6 +20,8 @@ export const EventModal: React.FC<EventModalProps> = ({
     variables, characters, currentTurn, onSelectOption 
 }) => {
   const [buttonsDisabled, setButtonsDisabled] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const animationFrameRef = useRef<number>();
 
   // Find current character for context if possible
   const currentChar = characters.find(c => c.名称 === characterName) || characters[0];
@@ -29,14 +31,34 @@ export const EventModal: React.FC<EventModalProps> = ({
     if (isOpen) {
         if (isIndecisive) {
             setButtonsDisabled(true);
-            const timer = setTimeout(() => {
-                setButtonsDisabled(false);
-            }, 2000);
-            return () => clearTimeout(timer);
+            setProgress(0);
+            
+            const duration = 2000;
+            const startTime = performance.now();
+
+            const animate = (currentTime: number) => {
+                const elapsed = currentTime - startTime;
+                const newProgress = Math.min((elapsed / duration) * 100, 100);
+                
+                setProgress(newProgress);
+
+                if (elapsed < duration) {
+                    animationFrameRef.current = requestAnimationFrame(animate);
+                } else {
+                    setButtonsDisabled(false);
+                }
+            };
+
+            animationFrameRef.current = requestAnimationFrame(animate);
         } else {
             setButtonsDisabled(false);
+            setProgress(0);
         }
     }
+    
+    return () => {
+        if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+    };
   }, [isOpen, isIndecisive, event]); // Reset when event changes
 
   if (!isOpen || !event) return null;
@@ -56,7 +78,7 @@ export const EventModal: React.FC<EventModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 backdrop-blur-sm transition-opacity duration-300">
-      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden animate-jelly border-4 border-green-100 transform">
+      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden animate-jelly border-4 border-green-100 transform relative">
         <div className="bg-green-600 p-4">
             <h3 className="text-white font-bold text-lg text-center tracking-wider">
                 {titleContent}
@@ -72,6 +94,22 @@ export const EventModal: React.FC<EventModalProps> = ({
                 <div dangerouslySetInnerHTML={{ __html: bodyContent }}></div>
             </div>
             
+            {/* Indecisive Progress Bar */}
+            {buttonsDisabled && isIndecisive && (
+                <div className="mb-4">
+                    <div className="flex justify-between text-xs text-gray-400 font-bold mb-1">
+                        <span>优柔寡断发动中...</span>
+                        <span>犹豫中</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                        <div 
+                            className="bg-gray-400 h-full rounded-full transition-all duration-75 ease-linear"
+                            style={{ width: `${progress}%` }}
+                        ></div>
+                    </div>
+                </div>
+            )}
+
             <div className="space-y-3">
                 {hasOptions && visibleOptions.length > 0 ? (
                     visibleOptions.map((opt, idx) => {

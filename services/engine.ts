@@ -1114,46 +1114,148 @@ export const triggerCharacterEvent = (
     }
 
     if (selectedEvent) {
-        // Auto-resolution Loop for no-option events
+        // Event processing loop (Handles both Narrative chains and Auto-Choices)
         let currentEvent: GameEvent | undefined = selectedEvent;
         let variables: Record<string, any> = {};
         let logsToAdd: LogEntry[] = [];
         let currentStateCharacters = newCharacters;
 
-        while (currentEvent && (!currentEvent.选项组 || currentEvent.选项组.length === 0)) {
+        while (currentEvent) {
+            const hasOptions = currentEvent.选项组 && currentEvent.选项组.length > 0;
+            let forceNextJumpId: string | undefined = undefined;
+            let textOverride: string | undefined = undefined;
+            let isAutoResolved = false;
+            let wasAutoChoiced = false;
+            let autoChoiceEffectHtml = '';
+
+            // --- Multi-Personality Logic (Auto-Choice) ---
+            if (hasOptions) {
+                // 50% Chance to skip options and auto-choose
+                if (char.标签组.some(t => t.templateId === '多重人格') && Math.random() < 0.5) {
+                    
+                    // Filter valid options based on visibility condition
+                    const validOptions = (currentEvent.选项组 || []).map((opt, idx) => ({ opt, idx }))
+                        .filter(({ opt }) => {
+                            if (!opt.可见条件) return true;
+                            return checkCondition(opt.可见条件, char, gameState.currentTurn, undefined, currentStateCharacters, variables);
+                        });
+
+                    if (validOptions.length > 0) {
+                        // Take snapshot before choice execution to calculate specific diff
+                        const choiceStartSnapshot = JSON.parse(JSON.stringify(currentStateCharacters)) as RuntimeCharacter[];
+
+                        // Pick random option
+                        const chosen = validOptions[Math.floor(Math.random() * validOptions.length)];
+                        const { opt, idx: optionIndex } = chosen;
+
+                        // Apply Bonus
+                        char.通用属性.体力 = Math.min(100, char.通用属性.体力 + 5);
+                        char.通用属性.精力 = Math.min(100, char.通用属性.精力 + 5);
+
+                        // Execute Option Action (Pre-calc for Diff, but real exec happens below with branches)
+                        let nextJumpId: string | undefined = undefined;
+                        
+                        // Execute Pre-action (Critical for context)
+                        if (currentEvent.预操作指令) {
+                            const preRes = executeAction(currentEvent.预操作指令, char, gameState.currentTurn, currentStateCharacters, variables, true, currentEvent.标签组);
+                            variables = { ...variables, ...(preRes.newVariables || {}) };
+                        }
+
+                        // Execute Option Command
+                        if (opt.操作指令) {
+                            const res = executeAction(opt.操作指令, char, gameState.currentTurn, currentStateCharacters, variables, true, currentEvent.标签组);
+                            if (res.nextEventId) nextJumpId = res.nextEventId;
+                        }
+
+                        // Check Branches
+                        if (currentEvent.分支组) {
+                            for (const branch of currentEvent.分支组) {
+                                if (checkCondition(branch.判别式, char, gameState.currentTurn, optionIndex + 1, currentStateCharacters, variables)) {
+                                    const bRes = executeAction(branch.操作指令, char, gameState.currentTurn, currentStateCharacters, variables, true, currentEvent.标签组);
+                                    if (bRes.nextEventId) nextJumpId = bRes.nextEventId;
+                                    if (branch.跳转事件ID) nextJumpId = branch.跳转事件ID;
+                                    break;
+                                }
+                            }
+                        }
+
+                        forceNextJumpId = nextJumpId;
+                        textOverride = `${char.名称}没有这段记忆。`;
+                        isAutoResolved = true;
+                        wasAutoChoiced = true;
+
+                        // Calculate Diff for the choice specifically
+                        const choiceDiffs = generateStateDiffLog(choiceStartSnapshot, currentStateCharacters, characterId);
+                        if (choiceDiffs.length > 0) {
+                            autoChoiceEffectHtml = `<div class='mt-1 text-xs font-bold text-gray-500'>(${choiceDiffs.join(', ')})</div>`;
+                        }
+                        
+                    } else {
+                        // No valid options? Should not happen often, but treat as end of chain/break
+                        break; 
+                    }
+                } else {
+                    // Normal behavior: Stop and queue pending event
+                    // We DO NOT set isAutoResolved, so logic falls through to queueing
+                }
+            } else {
+                // No options (Narrative) - Chance for "No Memory" text replacement (Increased to 20%)
+                if (char.标签组.some(t => t.templateId === '多重人格') && Math.random() < 0.2) {
+                    textOverride = `${char.名称}没有这段记忆。`;
+                }
+                isAutoResolved = true; // Narrative events are automatically resolved immediately
+            }
+
+            // --- Execution Logic ---
+            
+            // If it's NOT resolved (meaning it needs user input), break the loop so it gets queued
+            if (hasOptions && !isAutoResolved) {
+                break;
+            }
+
+            // If it IS resolved (Narrative OR Auto-Choiced), execute remaining logic
+            
             // Update triggered count
             char.已触发事件[currentEvent.id] = (char.已触发事件[currentEvent.id] || 0) + 1;
 
-            // Run pre-action
-            if (currentEvent.预操作指令) {
+            // Run pre-action (Only for narrative, auto-choice ran it above)
+            if (!hasOptions && currentEvent.预操作指令) {
                 const res = executeAction(currentEvent.预操作指令, char, gameState.currentTurn, currentStateCharacters, variables, true, currentEvent.标签组);
                 variables = { ...variables, ...(res.newVariables || {}) };
             }
 
-            // Snapshot for Diff
+            // Snapshot for Diff (Important: For auto-choice, the 'action' part is already done above, but 'narrative' part is handled here?)
+            // Actually, if wasAutoChoiced, the actions are done. We just need to log. 
+            // If Narrative, we need to run actions.
             const snapshotChars = JSON.parse(JSON.stringify(currentStateCharacters)) as RuntimeCharacter[];
 
-            // Run Action
-            let nextEventId: string | undefined = undefined;
-            if (currentEvent.操作指令) {
-                const res = executeAction(currentEvent.操作指令, char, gameState.currentTurn, currentStateCharacters, variables, true, currentEvent.标签组);
-                if (res.nextEventId) nextEventId = res.nextEventId;
-            }
+            // Run Main Action (Only if NOT auto-choiced, because auto-choice logic already ran above)
+            
+            let nextEventId: string | undefined = forceNextJumpId;
 
-            // Check Branches (Auto)
-            if (currentEvent.分支组) {
-                for (const branch of currentEvent.分支组) {
-                    if (checkCondition(branch.判别式, char, gameState.currentTurn, undefined, currentStateCharacters, variables)) {
-                        const bRes = executeAction(branch.操作指令, char, gameState.currentTurn, currentStateCharacters, variables, true, currentEvent.标签组);
-                        if (bRes.nextEventId) nextEventId = bRes.nextEventId;
-                        if (branch.跳转事件ID) nextEventId = branch.跳转事件ID;
-                        break;
+            if (!hasOptions) {
+                // Narrative Event Logic
+                if (currentEvent.操作指令) {
+                    const res = executeAction(currentEvent.操作指令, char, gameState.currentTurn, currentStateCharacters, variables, true, currentEvent.标签组);
+                    if (res.nextEventId) nextEventId = res.nextEventId;
+                }
+
+                // Check Branches (Auto)
+                if (currentEvent.分支组) {
+                    for (const branch of currentEvent.分支组) {
+                        if (checkCondition(branch.判别式, char, gameState.currentTurn, undefined, currentStateCharacters, variables)) {
+                            const bRes = executeAction(branch.操作指令, char, gameState.currentTurn, currentStateCharacters, variables, true, currentEvent.标签组);
+                            if (bRes.nextEventId) nextEventId = bRes.nextEventId;
+                            if (branch.跳转事件ID) nextEventId = branch.跳转事件ID;
+                            break;
+                        }
                     }
                 }
             }
 
             // Generate Logs
-            const parsedText = parseText(currentEvent.正文, char, gameState.currentTurn, currentStateCharacters, variables);
+            const rawText = textOverride || currentEvent.正文;
+            const parsedText = parseText(rawText, char, gameState.currentTurn, currentStateCharacters, variables);
             const diffLogs = generateStateDiffLog(snapshotChars, currentStateCharacters, characterId);
             const effectHtml = diffLogs.length > 0 
                 ? `<div class='mt-1 text-xs font-bold text-gray-500'>(${diffLogs.join(', ')})</div>`
@@ -1166,6 +1268,16 @@ export const triggerCharacterEvent = (
                 type: 'event', // Use event style for narrative
                 isImportant: !!currentEvent.标题
             });
+            
+            // If Auto-Choice happened, log the "Unknown Choice"
+            if (wasAutoChoiced) {
+                logsToAdd.push({
+                    turn: gameState.currentTurn,
+                    characterName: char.名称,
+                    text: `选择了【你不知道做出了什么选择】${autoChoiceEffectHtml}`,
+                    type: 'choice'
+                });
+            }
 
             // Handle Jump
             if (nextEventId) {
@@ -1176,7 +1288,8 @@ export const triggerCharacterEvent = (
             }
         }
 
-        // If the chain ended with an event that HAS options, queue it
+        // If the chain ended with an event that HAS options (and wasn't auto-skipped), queue it
+        
         if (currentEvent && currentEvent.选项组 && currentEvent.选项组.length > 0) {
              // Update count for the queued event
              char.已触发事件[currentEvent.id] = (char.已触发事件[currentEvent.id] || 0) + 1;

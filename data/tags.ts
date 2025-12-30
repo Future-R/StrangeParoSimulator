@@ -36,6 +36,16 @@ export const TAGS: Record<string, TagTemplate> = {
     开局可选: true
   },
   // --- 性格/特质 ---
+  '多重人格': {
+    id: '多重人格',
+    显示名: '多重人格',
+    描述: '身体里住着另一个人。',
+    稀有度: 4, // SSR
+    互斥标签: ['凡人', '老成', '优柔寡断'],
+    人类可用: true,
+    马娘可用: true,
+    开局可选: true
+  },
   '热血': {
     id: '热血',
     显示名: '热血',
@@ -61,7 +71,7 @@ export const TAGS: Record<string, TagTemplate> = {
     显示名: '老成',
     描述: '行事相对稳重。',
     稀有度: 2,
-    互斥标签: ['热血', '冒失', '小祖宗'],
+    互斥标签: ['热血', '冒失', '小祖宗', '多重人格'],
     人类可用: true,
     马娘可用: true,
     开局可选: true
@@ -124,7 +134,7 @@ export const TAGS: Record<string, TagTemplate> = {
     互斥标签: [],
     人类可用: false,
     马娘可用: true,
-    开局可选: true
+    开局可选: false
   },
   '自卑': {
     id: '自卑',
@@ -144,7 +154,7 @@ export const TAGS: Record<string, TagTemplate> = {
     互斥标签: ['腹黑', '施虐狂'],
     人类可用: true,
     马娘可用: true,
-    开局可选: true
+    开局可选: false
   },
   '歌手': {
     id: '歌手',
@@ -182,7 +192,7 @@ export const TAGS: Record<string, TagTemplate> = {
     显示名: '凡人',
     描述: '通过努力来弥补天赋的不足。',
     稀有度: 1,
-    互斥标签: ['天才'],
+    互斥标签: ['天才', '多重人格'],
     人类可用: true,
     马娘可用: true,
     开局可选: false
@@ -231,7 +241,7 @@ export const TAGS: Record<string, TagTemplate> = {
     id: '贫穷',
     显示名: '贫穷',
     描述: '为了生计精打细算。',
-    稀有度: 2,
+    稀有度: 1,
     互斥标签: ['富豪', '大小姐'],
     人类可用: true,
     马娘可用: true,
@@ -292,7 +302,7 @@ export const TAGS: Record<string, TagTemplate> = {
     显示名: '优柔寡断',
     描述: '关键时刻无法做出决定。',
     稀有度: 1,
-    互斥标签: ['热血'],
+    互斥标签: ['热血', '多重人格'],
     人类可用: true,
     马娘可用: true,
     开局可选: true
@@ -397,7 +407,7 @@ export const TAGS: Record<string, TagTemplate> = {
     互斥标签: ['木头', '性冷淡'],
     人类可用: true,
     马娘可用: true,
-    开局可选: true
+    开局可选: false
   },
   '木头': {
     id: '木头',
