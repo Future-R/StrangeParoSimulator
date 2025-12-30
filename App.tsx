@@ -414,7 +414,7 @@ function App() {
         <div className="flex-1 flex flex-col h-full relative overflow-hidden">
             <div className="hidden md:flex p-4 border-b bg-white shadow-sm justify-between items-center z-20 flex-shrink-0">
                 <h1 className="text-xl font-bold text-gray-800">怪文书模拟器</h1>
-                <span className="text-xs text-gray-400 font-mono select-none">v0.1.251230</span>
+                <span className="text-xs text-gray-400 font-mono select-none">v0.1.251230b</span>
             </div>
 
             <div className="flex-1 overflow-y-auto flex flex-col w-full">
