@@ -103,7 +103,8 @@ const resolveTargetCharacter = (key: string, current: RuntimeCharacter, allChars
 // 辅助函数：解析数值，支持 "随机(min~max)" 或纯数字
 const evalValue = (valStr: string): number => {
     if (!valStr) return 0;
-    const randomMatch = valStr.match(/随机\((-?\d+)~(\-?\d+)\)/);
+    // Handle string inputs like "随机(5~15)" that might come from regex matches
+    const randomMatch = valStr.toString().match(/随机\((-?\d+)~(\-?\d+)\)/);
     if (randomMatch) {
         const min = parseInt(randomMatch[1]);
         const max = parseInt(randomMatch[2]);
@@ -254,6 +255,14 @@ export const checkCondition = (condition: string, char: RuntimeCharacter, turn: 
           case '==': return currentVal === val;
         }
       }
+    }
+
+    // New: 在队伍检查
+    if (propPath.includes('在队伍')) {
+        const match = propPath.match(/在队伍\s*==\s*(true|false)/);
+        if (match) {
+             return subject.inTeam === (match[1] === 'true');
+        }
     }
 
     // 7. 关系检查 (General Relationship Check)
@@ -605,7 +614,8 @@ export const executeAction = (
     // New: 双向关系变更
     if (action.startsWith('双向关系变更')) {
         // 双向关系变更(友情, 角色A/角色B/"优秀素质"/角色D, 10)
-        const match = action.match(/双向关系变更\(([^,]+),\s*(.+?),\s*(-?\d+)\)/);
+        // FIX: Regex now allows non-digit chars for value (to support evalValue like random)
+        const match = action.match(/双向关系变更\(([^,]+),\s*(.+?),\s*(.+?)\)/);
         if (match) {
             const type = match[1] as '友情' | '爱情';
             const targetsStr = match[2];
