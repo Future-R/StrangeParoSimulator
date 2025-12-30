@@ -102,7 +102,7 @@ function App() {
         if (prev.pendingEvents.length === 0) return prev;
 
         const currentEventItem = prev.pendingEvents[0];
-        const { characterId, event, variables } = currentEventItem;
+        const { characterId, event, variables: initialVariables } = currentEventItem;
         
         // 1. Snapshot State Before Action
         const snapshotCharacters = JSON.parse(JSON.stringify(prev.characters)) as RuntimeCharacter[];
@@ -110,8 +110,22 @@ function App() {
         // 2. Prepare Mutable State
         let newCharacters = JSON.parse(JSON.stringify(prev.characters)) as RuntimeCharacter[];
         let char = newCharacters.find(c => c.instanceId === characterId);
+        // Mutable Variables
+        let variables = { ...initialVariables };
         
         if (!char) return prev;
+
+        // --- ADD NARRATIVE LOG (Fix for missing history) ---
+        let newLogs = [...prev.logs];
+        if (currentEventItem.parsedText) {
+             newLogs.push({
+                turn: prev.currentTurn,
+                characterName: char.名称,
+                text: currentEventItem.parsedText,
+                type: 'event',
+                isImportant: !!currentEventItem.event.标题
+            });
+        }
 
         let jumpId: string | undefined = undefined;
 
@@ -152,7 +166,6 @@ function App() {
         }
 
         // --- Tag Logic (Silent) ---
-        // Modify state in place, results will be captured by Diff
         if (event.标签组?.includes('工作') && char.标签组.some(t => t.templateId === '社畜')) {
             if (char.通用属性.体力 >= 5 && char.通用属性.心情 >= 5) {
                 char.通用属性.体力 -= 5;
@@ -164,7 +177,6 @@ function App() {
         // --- Diffing to Generate Clean Log ---
         const diffLogs = generateStateDiffLog(snapshotCharacters, newCharacters, characterId);
         
-        const newLogs = [...prev.logs];
         const effectHtml = diffLogs.length > 0 
             ? `<div class='mt-1 text-xs font-bold text-gray-500'>(${diffLogs.join(', ')})</div>`
             : "";
@@ -178,53 +190,96 @@ function App() {
                 text: `选择了【${parsedDisplayText}】${effectHtml}`,
                 type: 'choice'
             });
+        } else if (effectHtml) {
+             newLogs.push({
+                turn: prev.currentTurn,
+                characterName: '系统',
+                text: `结果 ${effectHtml}`,
+                type: 'system'
+            });
         }
 
         let remainingEvents = prev.pendingEvents.slice(1);
         
-        // --- JUMP LOGIC (Silent Execution, Log Parsing) ---
-        if (jumpId) {
-            const nextEvent = EVENTS.find(e => e.id === jumpId);
-            if (nextEvent) {
-                const nextChar = char; 
+        // --- JUMP LOGIC (Chain Resolution) ---
+        let currentJumpId = jumpId;
+        
+        while (currentJumpId) {
+            const nextEvent = EVENTS.find(e => e.id === currentJumpId);
+            currentJumpId = undefined; // Reset for next iteration
 
-                let nextVariables = { ...variables };
+            if (nextEvent) {
+                const nextChar = char; // Same character context
+
+                // 1. Pre-action
                 if (nextEvent.预操作指令) {
-                     const preRes = executeAction(nextEvent.预操作指令, nextChar, prev.currentTurn, newCharacters, nextVariables, true);
-                     nextVariables = preRes.newVariables || nextVariables;
+                     const preRes = executeAction(nextEvent.预操作指令, nextChar, prev.currentTurn, newCharacters, variables, true);
+                     variables = { ...variables, ...(preRes.newVariables || {}) }; // Merge variables
                 }
 
+                // 2. Check Options
                 const hasOptions = nextEvent.选项组 && nextEvent.选项组.length > 0;
-                
+
+                // 3. Execution (Actions & Branches)
                 let jumpEffectHtml = '';
-                if (nextEvent.操作指令 && !hasOptions) {
-                    // Execute immediately silently, then diff again
-                    // Use newCharacters as baseline for jump action
+                
+                // If it has options, we stop chaining and queue it.
+                // If it DOES NOT have options, we execute its logic and check for further jumps.
+                if (!hasOptions) {
                     const preJumpSnapshot = JSON.parse(JSON.stringify(newCharacters)) as RuntimeCharacter[];
-                    
-                    executeAction(nextEvent.操作指令, nextChar, prev.currentTurn, newCharacters, nextVariables, true);
-                    
+                    let chainedJumpId: string | undefined = undefined;
+
+                    // A. Execute Action
+                    if (nextEvent.操作指令) {
+                        const res = executeAction(nextEvent.操作指令, nextChar, prev.currentTurn, newCharacters, variables, true);
+                        if (res.nextEventId) chainedJumpId = res.nextEventId;
+                    }
+
+                    // B. Check Branches (Auto)
+                    if (nextEvent.分支组) {
+                        for (const branch of nextEvent.分支组) {
+                            if (checkCondition(branch.判别式, nextChar, prev.currentTurn, undefined, newCharacters, variables)) {
+                                const bRes = executeAction(branch.操作指令, nextChar, prev.currentTurn, newCharacters, variables, true);
+                                if (bRes.nextEventId) chainedJumpId = bRes.nextEventId;
+                                if (branch.跳转事件ID) chainedJumpId = branch.跳转事件ID;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Log Diff
                     const jumpDiffs = generateStateDiffLog(preJumpSnapshot, newCharacters, characterId);
                     if (jumpDiffs.length > 0) {
                         jumpEffectHtml = `<div class='mt-2 pt-2 border-t border-dashed border-gray-200 text-xs text-gray-400 font-bold'>${jumpDiffs.join('  ')}</div>`;
                     }
-                }
 
-                const parsedText = parseText(nextEvent.正文, nextChar, prev.currentTurn, newCharacters, nextVariables) + jumpEffectHtml;
-                newLogs.push({
-                    turn: prev.currentTurn,
-                    characterName: nextChar.名称,
-                    text: parsedText,
-                    type: 'event',
-                    isImportant: !!nextEvent.标题
-                });
+                    // Log Text
+                    const parsedText = parseText(nextEvent.正文, nextChar, prev.currentTurn, newCharacters, variables) + jumpEffectHtml;
+                    newLogs.push({
+                        turn: prev.currentTurn,
+                        characterName: nextChar.名称,
+                        text: parsedText,
+                        type: 'event',
+                        isImportant: !!nextEvent.标题
+                    });
 
-                if (hasOptions) {
+                    // Set next jump for loop
+                    currentJumpId = chainedJumpId;
+
+                } else {
+                    // Has options -> Queue it and stop loop
+                    const parsedText = parseText(nextEvent.正文, nextChar, prev.currentTurn, newCharacters, variables);
+                    const parsedTitle = nextEvent.标题 ? parseText(nextEvent.标题, nextChar, prev.currentTurn, newCharacters, variables) : undefined;
+                    
                     remainingEvents = [{ 
                         characterId, 
                         event: nextEvent,
-                        variables: nextVariables 
+                        variables: { ...variables }, // Copy current state of variables
+                        parsedText,
+                        parsedTitle
                     }, ...remainingEvents];
+                    
+                    // Loop ends here naturally as currentJumpId is undefined
                 }
             }
         }
@@ -311,6 +366,15 @@ function App() {
                 text: `=== ${getTurnDate(nextTurn)} ===`,
                 type: 'system'
             }];
+            
+            // Apply Per-Turn Passives (e.g. Lecherous)
+            newState.characters.forEach(c => {
+                // 好色: 每回合爱欲+2
+                if (c.标签组.some(t => t.templateId === '好色')) {
+                    c.通用属性.爱欲 = Math.min(100, c.通用属性.爱欲 + 2);
+                }
+            });
+
             nextQueue = prev.characters.filter(c => c.inTeam).map(c => c.instanceId);
         }
 
@@ -401,7 +465,7 @@ function App() {
              <div className="px-4 py-1 rounded-full border border-green-400 bg-green-50">
                 <span className="font-bold text-green-700 text-base">{getTurnDate(gameState.currentTurn)}</span>
              </div>
-             <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-mono">v0.1.251230b</div>
+             <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-mono">v0.1.251230</div>
         </div>
 
         <div className="hidden md:flex md:w-96 flex-shrink-0 h-full z-10">
@@ -414,7 +478,7 @@ function App() {
         <div className="flex-1 flex flex-col h-full relative overflow-hidden">
             <div className="hidden md:flex p-4 border-b bg-white shadow-sm justify-between items-center z-20 flex-shrink-0">
                 <h1 className="text-xl font-bold text-gray-800">怪文书模拟器</h1>
-                <span className="text-xs text-gray-400 font-mono select-none">v0.1.251230b</span>
+                <span className="text-xs text-gray-400 font-mono select-none">v0.1.251230</span>
             </div>
 
             <div className="flex-1 overflow-y-auto flex flex-col w-full">

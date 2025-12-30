@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { GameEvent, RuntimeCharacter } from '../types';
 import { parseText, checkCondition } from '../services/engine';
 
@@ -19,15 +19,32 @@ export const EventModal: React.FC<EventModalProps> = ({
     isOpen, event, characterName, parsedTitle, parsedText, 
     variables, characters, currentTurn, onSelectOption 
 }) => {
+  const [buttonsDisabled, setButtonsDisabled] = useState(false);
+
+  // Find current character for context if possible
+  const currentChar = characters.find(c => c.名称 === characterName) || characters[0];
+  const isIndecisive = currentChar?.标签组.some(t => t.templateId === '优柔寡断');
+
+  useEffect(() => {
+    if (isOpen) {
+        if (isIndecisive) {
+            setButtonsDisabled(true);
+            const timer = setTimeout(() => {
+                setButtonsDisabled(false);
+            }, 2000);
+            return () => clearTimeout(timer);
+        } else {
+            setButtonsDisabled(false);
+        }
+    }
+  }, [isOpen, isIndecisive, event]); // Reset when event changes
+
   if (!isOpen || !event) return null;
 
   // Ensure default fallback uses parsing logic or simple replacement, and convert newlines to <br/>
   const titleContent = parsedTitle || event.标题 || '事件抉择';
   const rawBodyContent = parsedText || event.正文.replace(/{当前角色\.名称}/g, characterName);
   const bodyContent = rawBodyContent.replace(/\n/g, '<br/>');
-
-  // Find current character for context if possible
-  const currentChar = characters.find(c => c.名称 === characterName) || characters[0];
 
   const hasOptions = event.选项组 && event.选项组.length > 0;
   
@@ -64,23 +81,41 @@ export const EventModal: React.FC<EventModalProps> = ({
                             <button
                                 key={opt.originalIndex}
                                 onClick={() => onSelectOption(opt.originalIndex, displayText)}
-                                className="w-full text-left p-4 rounded-xl border-2 border-gray-100 hover:border-[#16A34A] hover:bg-[#16A34A] hover:text-white hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 group shadow-sm"
+                                disabled={buttonsDisabled}
+                                className={`
+                                    w-full text-left p-4 rounded-xl border-2 transition-all duration-200 group shadow-sm flex items-center
+                                    ${buttonsDisabled 
+                                        ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-wait opacity-70' 
+                                        : 'border-gray-100 hover:border-[#16A34A] hover:bg-[#16A34A] hover:text-white hover:scale-[1.02] active:scale-[0.98]'
+                                    }
+                                `}
                             >
-                                <div className="flex items-center">
-                                    <span className="bg-gray-200 text-gray-600 group-hover:bg-white group-hover:text-[#16A34A] w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold mr-3 transition-colors">
-                                        {idx + 1}
-                                    </span>
-                                    <span className="font-bold text-gray-700 group-hover:text-white">
-                                        {displayText}
-                                    </span>
-                                </div>
+                                <span className={`
+                                    w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold mr-3 transition-colors
+                                    ${buttonsDisabled 
+                                        ? 'bg-gray-200 text-gray-400' 
+                                        : 'bg-gray-200 text-gray-600 group-hover:bg-white group-hover:text-[#16A34A]'
+                                    }
+                                `}>
+                                    {idx + 1}
+                                </span>
+                                <span className={`font-bold ${buttonsDisabled ? '' : 'text-gray-700 group-hover:text-white'}`}>
+                                    {displayText}
+                                </span>
                             </button>
                         );
                     })
                 ) : (
                     <button
                         onClick={() => onSelectOption(-1, '继续')}
-                        className="w-full p-4 rounded-xl bg-green-500 text-white font-bold hover:bg-green-600 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 shadow-md"
+                        disabled={buttonsDisabled}
+                        className={`
+                            w-full p-4 rounded-xl font-bold transition-all duration-200 shadow-md
+                            ${buttonsDisabled
+                                ? 'bg-gray-300 text-gray-500 cursor-wait'
+                                : 'bg-green-500 text-white hover:bg-green-600 hover:scale-[1.02] active:scale-[0.98]'
+                            }
+                        `}
                     >
                         继续
                     </button>

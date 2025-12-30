@@ -74,7 +74,7 @@ export const TAGS: Record<string, TagTemplate> = {
     互斥标签: ['老成', '天才'],
     人类可用: true,
     马娘可用: true,
-    开局可选: true
+    开局可选: false
   },
   '小祖宗': {
     id: '小祖宗',
@@ -134,7 +134,7 @@ export const TAGS: Record<string, TagTemplate> = {
     互斥标签: ['热血'],
     人类可用: false,
     马娘可用: true,
-    开局可选: true
+    开局可选: false
   },
   '乐于助人': {
     id: '乐于助人',
@@ -185,7 +185,7 @@ export const TAGS: Record<string, TagTemplate> = {
     互斥标签: ['天才'],
     人类可用: true,
     马娘可用: true,
-    开局可选: true
+    开局可选: false
   },
   '大胃王': {
     id: '大胃王',
@@ -210,7 +210,7 @@ export const TAGS: Record<string, TagTemplate> = {
   '小鸟胃': {
     id: '小鸟胃',
     显示名: '小鸟胃',
-    描述: '吃一点就饱了。',
+    描述: '吃一点就饱了。\n大概率不会发胖，嗯，大概率。',
     稀有度: 2,
     互斥标签: ['大胃王'],
     人类可用: true,
@@ -255,7 +255,7 @@ export const TAGS: Record<string, TagTemplate> = {
     互斥标签: ['幸运'],
     人类可用: true,
     马娘可用: true,
-    开局可选: true
+    开局可选: false
   },
   '魅力十足': {
     id: '魅力十足',
@@ -402,7 +402,7 @@ export const TAGS: Record<string, TagTemplate> = {
   '木头': {
     id: '木头',
     显示名: '木头',
-    描述: '我恨你是块木头！爱情与爱欲获取量-80%。',
+    描述: '我恨你是块木头！爱情与爱欲难以提升。',
     稀有度: 2,
     互斥标签: ['恋爱脑', '好色', '魅力十足'],
     人类可用: true,
@@ -418,5 +418,15 @@ export const TAGS: Record<string, TagTemplate> = {
     人类可用: true,
     马娘可用: true,
     开局可选: true
+  },
+  '不再考虑': {
+    id: '不再考虑',
+    显示名: '不再考虑',
+    描述: '训练员判断该马娘不适合加入当前的队伍。',
+    稀有度: 1,
+    互斥标签: [],
+    人类可用: false,
+    马娘可用: true,
+    开局可选: false
   }
 };
