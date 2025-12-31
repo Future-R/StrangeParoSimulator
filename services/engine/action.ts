@@ -1,5 +1,5 @@
 
-import { RuntimeCharacter } from '../../types';
+import { RuntimeCharacter, RaceAttributes } from '../../types';
 import { checkCondition } from './condition';
 import { resolveTargetCharacter } from './character';
 import { evalValue, applyRelationshipModifiers } from './utils';
@@ -56,11 +56,21 @@ export const executeAction = (
 
         switch (action) {
             case '属性变更': {
-                const attr = actionParts[1] as any;
+                const attr = actionParts[1] as string;
                 const valStr = actionParts[2];
-                const val = evalValue(valStr, variables); // Updated: Pass variables
+                // Note: val is calculated once here. If '随机(min~max)' is used, it's evaluated now.
+                const val = evalValue(valStr, variables); 
                 
-                if (target.通用属性[attr as keyof typeof target.通用属性] !== undefined) {
+                const raceAttrs: (keyof RaceAttributes)[] = ['速度', '耐力', '力量', '毅力', '智慧'];
+
+                if (attr === '随机' || attr === '随机属性') {
+                    const randomAttr = raceAttrs[Math.floor(Math.random() * raceAttrs.length)];
+                    target.竞赛属性[randomAttr] = Math.max(0, target.竞赛属性[randomAttr] + val);
+                } else if (attr === '全属性') {
+                    raceAttrs.forEach(a => {
+                        target.竞赛属性[a] = Math.max(0, target.竞赛属性[a] + val);
+                    });
+                } else if (target.通用属性[attr as keyof typeof target.通用属性] !== undefined) {
                      // @ts-ignore
                      target.通用属性[attr] = Math.max(0, Math.min(100, target.通用属性[attr] + val));
                 } else if (target.竞赛属性[attr as keyof typeof target.竞赛属性] !== undefined) {
@@ -103,13 +113,46 @@ export const executeAction = (
             case '双向关系变更(友情,': 
             {
                 const fullCmd = actionParts.join(' ');
-                // Fixed regex: Use (.+) for the last argument to allow nested parentheses like 随机(5~15)
-                const match = fullCmd.match(/双向关系变更\(([^,]+),\s*([^/]+)\/([^,]+),\s*(.+)\)/);
-                if (match) {
-                    const type = match[1].trim() as '友情' | '爱情';
-                    const charAKey = match[2].trim();
-                    const charBKey = match[3].trim();
-                    const val = evalValue(match[4].trim(), variables); // Updated
+                
+                // Pattern 1: A/B Pair (Existing)
+                // e.g. 双向关系变更(友情, A/B, 10)
+                const matchPair = fullCmd.match(/双向关系变更\(([^,]+),\s*([^/]+)\/([^,]+),\s*(.+)\)/);
+                
+                // Pattern 2: List Variable (New)
+                // e.g. 双向关系变更(友情, 变量.训练组, 随机(5~10))
+                const matchList = fullCmd.match(/双向关系变更\(([^,]+),\s*(变量\.[^,]+),\s*(.+)\)/);
+
+                if (matchList) {
+                    const type = matchList[1].trim() as '友情' | '爱情';
+                    const listKey = matchList[2].trim().replace('变量.', '');
+                    const valStr = matchList[3].trim();
+                    const list = variables[listKey];
+                    
+                    if (Array.isArray(list)) {
+                        const chars = list as RuntimeCharacter[];
+                        // Apply mutually to all pairs in the list
+                        for (let i = 0; i < chars.length; i++) {
+                            for (let j = i + 1; j < chars.length; j++) {
+                                const c1 = chars[i];
+                                const c2 = chars[j];
+                                // Re-evaluate val for each pair so "随机(5~15)" generates different numbers
+                                const val = evalValue(valStr, variables); 
+                                
+                                const val12 = applyRelationshipModifiers(val, c2, type);
+                                if (!c1.关系列表[c2.instanceId]) c1.关系列表[c2.instanceId] = { 友情: 0, 爱情: 0 };
+                                c1.关系列表[c2.instanceId][type] = Math.min(100, Math.max(0, c1.关系列表[c2.instanceId][type] + val12));
+
+                                const val21 = applyRelationshipModifiers(val, c1, type);
+                                if (!c2.关系列表[c1.instanceId]) c2.关系列表[c1.instanceId] = { 友情: 0, 爱情: 0 };
+                                c2.关系列表[c1.instanceId][type] = Math.min(100, Math.max(0, c2.关系列表[c1.instanceId][type] + val21));
+                            }
+                        }
+                    }
+                } else if (matchPair) {
+                    const type = matchPair[1].trim() as '友情' | '爱情';
+                    const charAKey = matchPair[2].trim();
+                    const charBKey = matchPair[3].trim();
+                    const val = evalValue(matchPair[4].trim(), variables); // Updated
                     const charA = resolveTargetCharacter(charAKey, subject, allChars, variables);
                     const charB = resolveTargetCharacter(charBKey, subject, allChars, variables);
                     if (charA && charB) {
