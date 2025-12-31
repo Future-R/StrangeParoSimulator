@@ -100,7 +100,8 @@ export interface RuntimeCharacter {
   已触发事件: Record<string, number>;
   关系列表: Record<string, Relationship>; // Key: Target Instance ID (usually 'p1')
   称呼列表?: CallingRule[]; 
-  inTeam: boolean; 
+  inTeam: boolean;
+  recruitedAt?: number; // Turn number when joined team (for sorting)
 }
 
 // 选项对象

@@ -28,7 +28,8 @@ export const createRuntimeCharacter = (template: CharacterTemplate, instanceId: 
     已触发事件: {},
     关系列表: {},
     称呼列表: template.称呼列表,
-    inTeam: inTeam
+    inTeam: inTeam,
+    recruitedAt: inTeam ? 0 : undefined
   };
 
   const hasTag = (id: string) => char.标签组.some(t => t.templateId === id);

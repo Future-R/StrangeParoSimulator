@@ -8,7 +8,7 @@ import { TagModal } from './components/TagModal';
 import { SetupScreen } from './components/SetupScreen';
 import { MobileCharacterList } from './components/MobileCharacterList';
 import { GameState, RuntimeCharacter, LogEntry, TagTemplate, RuntimeTag, Relationship } from './types';
-import { createRuntimeCharacter, triggerCharacterEvent, resolvePendingEvent, getTurnDate, parseText, checkCondition } from './services/engine';
+import { createRuntimeCharacter, triggerCharacterEvent, resolvePendingEvent, getTurnDate, parseText, checkCondition, getAvailableStartTags } from './services/engine';
 import { CHARACTERS, EVENTS, ENDING_EVENTS, TAGS } from './constants';
 
 const INITIAL_MAX_TURNS = 72;
@@ -86,17 +86,69 @@ function App() {
       setActiveTagData({ tag: template, targetNames });
   };
 
-  const handleSetupComplete = (name: string, gender: '男'|'女', selectedTags: string[]) => {
+  const handleSetupComplete = (name: string, gender: '男'|'女', selectedTags: string[], starterId?: string) => {
       const umaKeys = ['优秀素质', '东海帝王', '摩耶重炮', '米浴', '北部玄驹', '无声铃鹿'];
-      const randomUmaKey = umaKeys[Math.floor(Math.random() * umaKeys.length)];
+      // If starterId is provided (Dev Mode), use it. Otherwise pick random.
+      const chosenUmaKey = starterId || umaKeys[Math.floor(Math.random() * umaKeys.length)];
+
+      // --- Logic for '变化万千' Trait ---
+      let finalTags = [...selectedTags];
+      if (finalTags.includes('变化万千')) {
+          // 1. Remove the trait itself
+          finalTags = finalTags.filter(t => t !== '变化万千');
+          
+          const allPool = getAvailableStartTags();
+          
+          // 2. Loop twice to add 2 random traits
+          for (let i = 0; i < 2; i++) {
+               // Filter pool for valid tags:
+               // - Not already selected
+               // - Not '变化万千'
+               // - Not mutually exclusive with ANY current tag
+               const validPool = allPool.filter(t => {
+                   if (finalTags.includes(t.id)) return false;
+                   if (t.id === '变化万千') return false;
+                   
+                   // Check forward mutex (Existing blocks New)
+                   const isBlockedByCurrent = finalTags.some(existingId => {
+                       const existingTag = TAGS[existingId];
+                       return existingTag?.互斥标签?.includes(t.id);
+                   });
+                   if (isBlockedByCurrent) return false;
+
+                   // Check backward mutex (New blocks Existing)
+                   const blocksCurrent = t.互斥标签?.some(blockedId => finalTags.includes(blockedId));
+                   if (blocksCurrent) return false;
+
+                   return true;
+               });
+
+               if (validPool.length === 0) break;
+
+               // Weighted Random Selection
+               let totalWeight = validPool.reduce((sum, t) => sum + (5 - t.稀有度), 0);
+               let r = Math.random() * totalWeight;
+               let selected = validPool[validPool.length - 1];
+               
+               for (const t of validPool) {
+                   const weight = 5 - t.稀有度;
+                   r -= weight;
+                   if (r <= 0) {
+                       selected = t;
+                       break;
+                   }
+               }
+               finalTags.push(selected.id);
+          }
+      }
 
       const allCharacters: RuntimeCharacter[] = [];
-      const trainer = createRuntimeCharacter(CHARACTERS['训练员'], 'p1', true, name, gender, selectedTags);
+      const trainer = createRuntimeCharacter(CHARACTERS['训练员'], 'p1', true, name, gender, finalTags);
       allCharacters.push(trainer);
 
       Object.values(CHARACTERS).forEach(tpl => {
           if (tpl.id === '训练员') return;
-          const isStarter = tpl.id === randomUmaKey;
+          const isStarter = tpl.id === chosenUmaKey;
           const instanceId = isStarter ? 'c1' : `npc_${tpl.id}`;
           const char = createRuntimeCharacter(tpl, instanceId, isStarter); 
           allCharacters.push(char);
@@ -268,7 +320,23 @@ function App() {
   const parsedModalTitle = currentPendingEvent?.parsedTitle;
 
   const hasPendingActions = gameState.currentTurnQueue.length > 0;
-  const teamCharacters = gameState.characters.filter(c => c.inTeam);
+  
+  // Sort characters for display: P1 first, then by recruitedAt
+  const teamCharacters = gameState.characters
+    .filter(c => c.inTeam)
+    .sort((a, b) => {
+        // P1 always first
+        if (a.instanceId === 'p1') return -1;
+        if (b.instanceId === 'p1') return 1;
+        
+        // Sort by recruitedAt (0 for starters, Turn# for new)
+        const ra = a.recruitedAt ?? 0;
+        const rb = b.recruitedAt ?? 0;
+        if (ra !== rb) return ra - rb;
+        
+        // Stable sort fallback
+        return a.instanceId.localeCompare(b.instanceId);
+    });
 
   return (
     <div className="flex flex-col md:flex-row h-screen w-full overflow-hidden bg-white">

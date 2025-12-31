@@ -1,13 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
-import { TagTemplate } from '../types';
+import { TagTemplate, CharacterTemplate } from '../types';
 import { getAvailableStartTags } from '../services/engine';
+import { CHARACTERS } from '../constants';
 
 interface SetupScreenProps {
-  onComplete: (name: string, gender: '男' | '女', selectedTags: string[]) => void;
+  onComplete: (name: string, gender: '男' | '女', selectedTags: string[], starterId?: string) => void;
 }
 
-// 绿色瞄准框组件 (3D立体风格) - Used in Step 2
+// 绿色瞄准框组件 (3D立体风格) - Used in Step 2 & 3
 const SelectionFrame = () => (
   <div className="absolute inset-0 pointer-events-none z-20">
     {/* 使用 drop-shadow 滤镜模拟厚度和立体感 */}
@@ -57,22 +58,26 @@ const RadioButton = ({ label, checked, onClick }: { label: string, checked: bool
 );
 
 export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
-  const [step, setStep] = useState<1 | 2>(1);
-  const [name, setName] = useState('新人训练员');
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [name, setName] = useState('新人');
   // Default gender is now '随机'
   const [gender, setGender] = useState<'男' | '女' | '随机'>('随机'); 
   const [availableTags, setAvailableTags] = useState<TagTemplate[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [blockedTags, setBlockedTags] = useState<string[]>([]);
+  
+  // Dev Mode State
+  const [selectedStarterId, setSelectedStarterId] = useState<string | null>(null);
 
   const isNameEmpty = name.trim().length === 0;
+  const isDevMode = name === '未来';
 
-  useEffect(() => {
+  // Logic extracted for reuse (Dev Mode Refresh)
+  const generateRandomTraits = () => {
     const allTags = getAvailableStartTags();
     const selected: TagTemplate[] = [];
     const pool = [...allTags];
     
-    // Weighted selection logic
     const TARGET_COUNT = 10;
     
     for (let i = 0; i < TARGET_COUNT && pool.length > 0; i++) {
@@ -93,8 +98,12 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
         selected.push(pool[foundIndex]);
         pool.splice(foundIndex, 1);
     }
-
     setAvailableTags(selected);
+    setSelectedTags([]); // Reset selection on refresh
+  };
+
+  useEffect(() => {
+    generateRandomTraits();
   }, []);
 
   useEffect(() => {
@@ -121,6 +130,12 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
   const handleStart = () => {
     if (isNameEmpty) return;
     
+    // Dev Mode Interception
+    if (isDevMode && step === 2) {
+        setStep(3);
+        return;
+    }
+
     let finalGender: '男' | '女';
 
     if (selectedTags.includes('马娘')) {
@@ -131,7 +146,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
         finalGender = gender;
     }
 
-    onComplete(name, finalGender, selectedTags);
+    onComplete(name, finalGender, selectedTags, selectedStarterId || undefined);
   };
 
   const getTagColors = (tag: TagTemplate, isSelected: boolean) => {
@@ -152,6 +167,9 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
       return <span className="text-xs bg-gray-100 text-gray-500 px-1.5 rounded border border-gray-200">N</span>;
   };
 
+  // Filter playable characters for Step 3
+  const playableCharacters = Object.values(CHARACTERS).filter(c => !c.isTrainer);
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-2 md:p-4 font-sans bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
       
@@ -162,7 +180,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
         <div className="bg-[#66D814] p-4 text-center shadow-md relative overflow-hidden flex-shrink-0 z-10">
             <div className="absolute top-0 left-0 w-full h-full bg-white opacity-10 transform -skew-x-12"></div>
             <h1 className="text-2xl font-bold text-white relative z-10 tracking-widest drop-shadow-md">
-                训练员登记
+                {step === 3 ? '初始马娘选择' : '训练员登记'}
             </h1>
         </div>
 
@@ -289,6 +307,15 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
 
             {/* Footer Actions */}
             <div className="flex space-x-3 p-4 bg-white border-t border-gray-200 flex-shrink-0 z-10">
+                {isDevMode && (
+                    <button
+                        onClick={generateRandomTraits}
+                        className="bg-purple-100 hover:bg-purple-200 text-purple-700 font-bold px-4 rounded-xl border-2 border-purple-300 shadow-sm transition text-sm"
+                        title="开发者功能：刷新特质"
+                    >
+                        刷新
+                    </button>
+                )}
                 <button
                     onClick={() => setStep(1)}
                     className="flex-1 bg-white hover:bg-gray-50 text-gray-600 font-bold py-3 rounded-xl border-2 border-gray-300 shadow-sm transition text-lg"
@@ -299,10 +326,68 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
                     onClick={handleStart}
                     className="flex-1 bg-gradient-to-b from-[#66D814] to-[#55B50A] hover:from-[#76E020] hover:to-[#60C510] text-white font-bold py-3 rounded-xl shadow-lg border-b-4 border-[#4AA00D] active:border-0 active:translate-y-1 transition-all text-lg"
                 >
-                    开始育成
+                    {isDevMode ? '下一步 (Dev)' : '开始育成'}
                 </button>
             </div>
           </div>
+        )}
+
+        {/* Step 3: Dev Mode Only - Select Starter */}
+        {step === 3 && (
+            <div className="flex flex-col h-full animate-fade-in bg-gray-50 overflow-hidden min-h-[50vh]">
+                <div className="bg-white px-4 py-2 border-b border-gray-200 flex justify-between items-center shadow-sm flex-shrink-0">
+                    <span className="text-gray-500 font-bold text-xs md:text-sm">开发者模式：指定初始马娘</span>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-3 md:p-4 min-h-0">
+                    <div className="grid grid-cols-2 gap-3">
+                        {playableCharacters.map(char => {
+                            const isSelected = selectedStarterId === char.id;
+                            return (
+                                <button
+                                    key={char.id}
+                                    onClick={() => setSelectedStarterId(char.id)}
+                                    className={`
+                                        relative p-3 rounded-xl border-2 text-left transition-all duration-200 h-full
+                                        ${isSelected 
+                                            ? 'bg-pink-50 border-pink-400 shadow-md transform scale-[1.01]' 
+                                            : 'bg-white border-gray-200 hover:border-pink-300'
+                                        }
+                                    `}
+                                >
+                                    {isSelected && <SelectionFrame />}
+                                    <div className="font-bold text-gray-800">{char.名称}</div>
+                                    <div className="text-xs text-gray-500 mt-1">
+                                        {char.初始标签.join(', ')}
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                <div className="flex space-x-3 p-4 bg-white border-t border-gray-200 flex-shrink-0 z-10">
+                     <button
+                        onClick={() => setStep(2)}
+                        className="flex-1 bg-white hover:bg-gray-50 text-gray-600 font-bold py-3 rounded-xl border-2 border-gray-300 shadow-sm transition text-lg"
+                    >
+                        返回
+                    </button>
+                    <button
+                        onClick={handleStart} // Will execute onComplete now since step is 3
+                        disabled={!selectedStarterId}
+                        className={`
+                            flex-1 font-bold py-3 rounded-xl shadow-lg border-b-4 active:border-0 active:translate-y-1 transition-all text-lg
+                            ${!selectedStarterId 
+                                ? 'bg-gray-300 border-gray-400 text-gray-500 cursor-not-allowed' 
+                                : 'bg-gradient-to-b from-[#66D814] to-[#55B50A] hover:from-[#76E020] hover:to-[#60C510] text-white border-[#4AA00D]'
+                            }
+                        `}
+                    >
+                        确认开始
+                    </button>
+                </div>
+            </div>
         )}
       </div>
     </div>

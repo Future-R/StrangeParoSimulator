@@ -6,8 +6,32 @@ import { resolveTargetCharacter } from './character';
 export const checkCondition = (condition: string, char: RuntimeCharacter, turn: number, choiceIndex?: number, allChars: RuntimeCharacter[] = [], variables?: Record<string, any>): boolean => {
   if (!condition || condition.trim() === '') return true;
 
-  const subConditions: string[] = [];
+  // 1. Basic OR (||) Support
+  // We split by '||' at the top level (ignoring parentheses). If ANY part is true, return true.
   let parenLevel = 0;
+  for (let i = 0; i < condition.length; i++) {
+      const c = condition[i];
+      if (c === '(') parenLevel++;
+      if (c === ')') parenLevel--;
+      
+      if (c === '|' && condition[i+1] === '|' && parenLevel === 0) {
+          const left = condition.substring(0, i).trim();
+          const right = condition.substring(i+2).trim();
+          // Short-circuit logic: if left is true, we don't strictly need to evaluate right, but recursion handles it.
+          // Note: Standard JS precedence is && before ||. 
+          // However, here we are splitting by || FIRST. 
+          // Example: A && B || C. 
+          // Split: "A && B" OR "C". 
+          // If check("A && B") is true, result is true. Else check("C").
+          // This correctly implements A && B || C (AND binds tighter).
+          return checkCondition(left, char, turn, choiceIndex, allChars, variables) || 
+                 checkCondition(right, char, turn, choiceIndex, allChars, variables);
+      }
+  }
+
+  // 2. AND (&&) Logic (Existing)
+  const subConditions: string[] = [];
+  parenLevel = 0;
   let buffer = '';
   
   for (let i = 0; i < condition.length; i++) {
@@ -30,6 +54,13 @@ export const checkCondition = (condition: string, char: RuntimeCharacter, turn: 
   return subConditions.every(cond => {
     if (cond === 'true') return true;
     if (cond === 'false') return false;
+
+    // Parentheses stripping for simple cases (Recursion)
+    if (cond.startsWith('(') && cond.endsWith(')')) {
+        // Simple check to ensure it's a wrapping pair, not "(A) && (B)" (though split logic handles top level)
+        // Since we split by && already, "A && B" inside parens is one chunk.
+        return checkCondition(cond.substring(1, cond.length - 1), char, turn, choiceIndex, allChars, variables);
+    }
 
     if (cond.startsWith('已选序号')) {
         const match = cond.match(/已选序号\s*==\s*(\d+)/);

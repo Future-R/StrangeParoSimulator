@@ -20,8 +20,8 @@ export const executeAction = (
 
     commands.forEach(rawCmd => {
         // 1. Normalization for common natural language typos/aliases
-        // Supports: "训练员.属性变更" -> "训练员.属性变更"
-        let cmd = rawCmd.replace(/^训练员.属性变更/, '训练员.属性变更');
+        // Supports: "训练员属性变更" -> "训练员.属性变更"
+        let cmd = rawCmd.replace(/^训练员属性变更/, '训练员.属性变更');
 
         const ifIndex = cmd.lastIndexOf(' 若 ');
         if (ifIndex !== -1) {
@@ -49,7 +49,10 @@ export const executeAction = (
             }
         }
 
-        const action = actionParts[0];
+        // Fix: Normalize action name by stripping function call parentheses
+        // e.g. "让角色入队(目标)" -> "让角色入队"
+        const rawAction = actionParts[0];
+        const action = rawAction.includes('(') ? rawAction.split('(')[0] : rawAction;
 
         switch (action) {
             case '属性变更': {
@@ -216,9 +219,16 @@ export const executeAction = (
                  break;
             }
             case '列表截取': {
-                 const listKey = actionParts[1].replace('(', '').replace(',', '');
-                 const count = parseInt(actionParts[2].replace(')', ''));
-                 if (Array.isArray(variables[listKey])) variables[listKey] = variables[listKey].slice(0, count);
+                 // Updated Logic: Use regex to safely extract arguments, avoiding space-split issues
+                 const fullCmd = actionParts.join(' ');
+                 const match = fullCmd.match(/列表截取\(([^,]+),\s*(\d+)\)/);
+                 if (match) {
+                     const listKey = match[1].trim();
+                     const count = parseInt(match[2]);
+                     if (Array.isArray(variables[listKey])) {
+                         variables[listKey] = variables[listKey].slice(0, count);
+                     }
+                 }
                  break;
             }
             case '列表添加': {
@@ -253,7 +263,11 @@ export const executeAction = (
                  if (match) {
                      const targetVar = match[1].trim();
                      const targetC = resolveTargetCharacter(targetVar, subject, allChars, variables);
-                     if (targetC) targetC.inTeam = true;
+                     if (targetC) {
+                         targetC.inTeam = true;
+                         // Set join turn for sorting
+                         targetC.recruitedAt = turn;
+                     }
                  }
                  break;
             }
