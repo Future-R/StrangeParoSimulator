@@ -1127,7 +1127,7 @@ export const generateStateDiffLog = (oldChars: RuntimeCharacter[], newChars: Run
 // Event Triggering
 // ===========================
 
-export const triggerCharacterEvent = (gameState: GameState, charId: string, specificEvent?: GameEvent): GameState => {
+export const triggerCharacterEvent = (gameState: GameState, charId: string, specificEvent?: GameEvent, existingVariables?: Record<string, any>): GameState => {
   const char = gameState.characters.find(c => c.instanceId === charId);
   if (!char) return gameState;
 
@@ -1181,10 +1181,10 @@ export const triggerCharacterEvent = (gameState: GameState, charId: string, spec
       const snapshotChars = JSON.parse(JSON.stringify(newChars));
 
       // 2. Pre-actions
-      let currentVariables: Record<string, any> = {};
+      let currentVariables: Record<string, any> = { ...existingVariables };
       if (eventToTrigger.预操作指令) {
-          const res = executeAction(eventToTrigger.预操作指令, subjectChar, gameState.currentTurn, newChars, {}, true, eventToTrigger.标签组);
-          currentVariables = res.newVariables || {};
+          const res = executeAction(eventToTrigger.预操作指令, subjectChar, gameState.currentTurn, newChars, currentVariables, true, eventToTrigger.标签组);
+          if (res.newVariables) currentVariables = res.newVariables;
       }
 
       // 3. Main Actions
@@ -1192,6 +1192,7 @@ export const triggerCharacterEvent = (gameState: GameState, charId: string, spec
       if (eventToTrigger.操作指令) {
           const res = executeAction(eventToTrigger.操作指令, subjectChar, gameState.currentTurn, newChars, currentVariables, true, eventToTrigger.标签组);
           if (res.nextEventId) nextEventId = res.nextEventId;
+          if (res.newVariables) currentVariables = res.newVariables;
       }
 
       // 4. Branch Logic (Auto)
@@ -1201,6 +1202,7 @@ export const triggerCharacterEvent = (gameState: GameState, charId: string, spec
                   const bRes = executeAction(branch.操作指令, subjectChar, gameState.currentTurn, newChars, currentVariables, true, eventToTrigger.标签组);
                   if (bRes.nextEventId) nextEventId = bRes.nextEventId;
                   if (branch.跳转事件ID) nextEventId = branch.跳转事件ID;
+                  if (bRes.newVariables) currentVariables = bRes.newVariables;
                   break;
               }
           }
@@ -1233,7 +1235,7 @@ export const triggerCharacterEvent = (gameState: GameState, charId: string, spec
       if (nextEventId) {
           const nextEvt = EVENTS.find(e => e.id === nextEventId);
           if (nextEvt) {
-               return triggerCharacterEvent(newState, charId, nextEvt);
+               return triggerCharacterEvent(newState, charId, nextEvt, currentVariables);
           }
       }
 
@@ -1241,10 +1243,10 @@ export const triggerCharacterEvent = (gameState: GameState, charId: string, spec
 
   } else {
       // Event HAS Options -> Queue as Pending
-      let currentVariables: Record<string, any> = {};
+      let currentVariables: Record<string, any> = { ...existingVariables };
       if (eventToTrigger.预操作指令) {
-          const res = executeAction(eventToTrigger.预操作指令, subjectChar, gameState.currentTurn, newChars, {}, true, eventToTrigger.标签组);
-          currentVariables = res.newVariables || {};
+          const res = executeAction(eventToTrigger.预操作指令, subjectChar, gameState.currentTurn, newChars, currentVariables, true, eventToTrigger.标签组);
+          if (res.newVariables) currentVariables = res.newVariables;
       }
 
       const parsedTitle = eventToTrigger.标题 ? parseText(eventToTrigger.标题, subjectChar, gameState.currentTurn, newChars, currentVariables) : undefined;
@@ -1265,4 +1267,3 @@ export const triggerCharacterEvent = (gameState: GameState, charId: string, spec
       };
   }
 };
-    
