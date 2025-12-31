@@ -5,8 +5,13 @@ import { Aptitudes } from '../types';
 // 适性单个格子
 const AptItem = ({ label, val }: { label: string, val: string }) => {
     let color = 'text-gray-400';
+    
     if (['S', 'A'].includes(val)) color = 'text-orange-500 font-bold';
-    if (['B', 'C'].includes(val)) color = 'text-green-500';
+    else if (val === 'B') color = 'text-[#FFA7C6] font-bold'; // 粉色
+    else if (val === 'C') color = 'text-green-500';
+    else if (val === 'E') color = 'text-[#E794FE]'; // 紫色
+    else if (val === 'F') color = 'text-[#B2ACE7]'; // 深青色
+    else if (val === 'D') color = 'text-gray-500';
     
     return (
         <div className="flex flex-col items-center justify-center bg-gray-50 rounded p-1 border border-gray-100 min-w-[3rem]">

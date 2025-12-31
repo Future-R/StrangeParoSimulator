@@ -7,9 +7,9 @@ import { EventModal } from './components/EventModal';
 import { TagModal } from './components/TagModal';
 import { SetupScreen } from './components/SetupScreen';
 import { MobileCharacterList } from './components/MobileCharacterList';
-import { GameState, RuntimeCharacter, LogEntry, TagTemplate } from './types';
+import { GameState, RuntimeCharacter, LogEntry, TagTemplate, RuntimeTag, Relationship } from './types';
 import { createRuntimeCharacter, triggerCharacterEvent, executeAction, checkCondition, getTurnDate, parseText, generateStateDiffLog } from './services/engine';
-import { CHARACTERS, EVENTS, ENDING_EVENTS } from './constants';
+import { CHARACTERS, EVENTS, ENDING_EVENTS, TAGS } from './constants';
 
 const INITIAL_MAX_TURNS = 72;
 
@@ -29,7 +29,7 @@ const createInitialState = (): GameState => {
 
 function App() {
   const [gameState, setGameState] = useState<GameState>(createInitialState());
-  const [activeTag, setActiveTag] = useState<TagTemplate | null>(null);
+  const [activeTagData, setActiveTagData] = useState<{ tag: TagTemplate, targetNames?: string[] } | null>(null);
 
   // DEBUG: Expose state to console
   useEffect(() => {
@@ -49,7 +49,46 @@ function App() {
                 }))
         );
     };
+
+    // @ts-ignore
+    window.queryRelations = (nameOrId: string) => {
+        const chars = gameState.characters;
+        const target = chars.find(c => c.名称 === nameOrId || c.instanceId === nameOrId);
+        if (!target) return console.error('Character not found');
+
+        console.group(`Relations for ${target.名称}`);
+        console.log('--- TO OTHERS ---');
+        Object.entries(target.关系列表).forEach(([tid, rel]) => {
+            const r = rel as Relationship;
+            const t = chars.find(c => c.instanceId === tid);
+            console.log(`To ${t?.名称}: 友情${r.友情}, 爱情${r.爱情}`);
+        });
+        console.log('--- FROM OTHERS ---');
+        chars.forEach(c => {
+            if (c === target) return;
+            const rel = c.关系列表[target.instanceId];
+            if (rel) {
+                console.log(`From ${c.名称}: 友情${rel.友情}, 爱情${rel.爱情}`);
+            }
+        });
+        console.groupEnd();
+    };
   }, [gameState]);
+
+  const handleTagClick = (runtimeTag: RuntimeTag) => {
+      const template = TAGS[runtimeTag.templateId];
+      if (!template) return;
+      
+      let targetNames: string[] = [];
+      if (runtimeTag.targets && runtimeTag.targets.length > 0) {
+          targetNames = runtimeTag.targets.map(tid => {
+              const c = gameState.characters.find(char => char.instanceId === tid);
+              return c ? c.名称 : '未知';
+          });
+      }
+      
+      setActiveTagData({ tag: template, targetNames });
+  };
 
   const handleSetupComplete = (name: string, gender: '男'|'女', selectedTags: string[]) => {
       // 1. Determine Starter Uma (Random from a subset)
@@ -76,6 +115,25 @@ function App() {
 
       const starterUma = allCharacters.find(c => c.instanceId === 'c1');
       
+      // 3. Resolve Tag Targets (Post-Creation)
+      allCharacters.forEach(char => {
+          const tpl = CHARACTERS[char.templateId];
+          if (tpl && tpl.初始标签附带对象) {
+              Object.entries(tpl.初始标签附带对象).forEach(([tagId, targetTplIds]) => {
+                  const tag = char.标签组.find(t => t.templateId === tagId);
+                  if (tag) {
+                      const resolvedTargets: string[] = [];
+                      targetTplIds.forEach(tTplId => {
+                          // Find instance by template ID
+                          const targetChar = allCharacters.find(c => c.templateId === tTplId);
+                          if (targetChar) resolvedTargets.push(targetChar.instanceId);
+                      });
+                      tag.targets = resolvedTargets;
+                  }
+              });
+          }
+      });
+
       // Fix: Populate queue immediately for Turn 1
       const starterQueue = allCharacters.filter(c => c.inTeam).map(c => c.instanceId);
 
@@ -136,14 +194,14 @@ function App() {
              const option = event.选项组?.[optionIndex];
              if (option) {
                 // Execute Action (Silent)
-                const res = executeAction(option.操作指令, char, prev.currentTurn, newCharacters, variables, true);
+                const res = executeAction(option.操作指令, char, prev.currentTurn, newCharacters, variables, true, event.标签组);
                 if (res.nextEventId) jumpId = res.nextEventId;
 
                 // Process Branches (Silent)
                 if (event.分支组) {
                     for (const branch of event.分支组) {
                         if (checkCondition(branch.判别式, char, prev.currentTurn, optionIndex + 1, newCharacters, variables)) {
-                            const bRes = executeAction(branch.操作指令, char, prev.currentTurn, newCharacters, variables, true);
+                            const bRes = executeAction(branch.操作指令, char, prev.currentTurn, newCharacters, variables, true, event.标签组);
                             if (bRes.nextEventId) jumpId = bRes.nextEventId;
                             if (branch.跳转事件ID) jumpId = branch.跳转事件ID;
                             break;
@@ -157,7 +215,7 @@ function App() {
         if (optionIndex === -1 && event.分支组) {
              for (const branch of event.分支组) {
                 if (checkCondition(branch.判别式, char, prev.currentTurn, undefined, newCharacters, variables)) {
-                    const bRes = executeAction(branch.操作指令, char, prev.currentTurn, newCharacters, variables, true);
+                    const bRes = executeAction(branch.操作指令, char, prev.currentTurn, newCharacters, variables, true, event.标签组);
                     if (bRes.nextEventId) jumpId = bRes.nextEventId;
                     if (branch.跳转事件ID) jumpId = branch.跳转事件ID;
                     break;
@@ -213,7 +271,7 @@ function App() {
 
                 // 1. Pre-action
                 if (nextEvent.预操作指令) {
-                     const preRes = executeAction(nextEvent.预操作指令, nextChar, prev.currentTurn, newCharacters, variables, true);
+                     const preRes = executeAction(nextEvent.预操作指令, nextChar, prev.currentTurn, newCharacters, variables, true, nextEvent.标签组);
                      variables = { ...variables, ...(preRes.newVariables || {}) }; // Merge variables
                 }
 
@@ -231,7 +289,7 @@ function App() {
 
                     // A. Execute Action
                     if (nextEvent.操作指令) {
-                        const res = executeAction(nextEvent.操作指令, nextChar, prev.currentTurn, newCharacters, variables, true);
+                        const res = executeAction(nextEvent.操作指令, nextChar, prev.currentTurn, newCharacters, variables, true, nextEvent.标签组);
                         if (res.nextEventId) chainedJumpId = res.nextEventId;
                     }
 
@@ -239,7 +297,7 @@ function App() {
                     if (nextEvent.分支组) {
                         for (const branch of nextEvent.分支组) {
                             if (checkCondition(branch.判别式, nextChar, prev.currentTurn, undefined, newCharacters, variables)) {
-                                const bRes = executeAction(branch.操作指令, nextChar, prev.currentTurn, newCharacters, variables, true);
+                                const bRes = executeAction(branch.操作指令, nextChar, prev.currentTurn, newCharacters, variables, true, nextEvent.标签组);
                                 if (bRes.nextEventId) chainedJumpId = bRes.nextEventId;
                                 if (branch.跳转事件ID) chainedJumpId = branch.跳转事件ID;
                                 break;
@@ -367,11 +425,29 @@ function App() {
                 type: 'system'
             }];
             
-            // Apply Per-Turn Passives (e.g. Lecherous)
+            // Apply Per-Turn Passives
             newState.characters.forEach(c => {
                 // 好色: 每回合爱欲+2
                 if (c.标签组.some(t => t.templateId === '好色')) {
                     c.通用属性.爱欲 = Math.min(100, c.通用属性.爱欲 + 2);
+                }
+                
+                // 憧憬: 每回合对目标增加2友情
+                const admirationTag = c.标签组.find(t => t.templateId === '憧憬');
+                if (admirationTag && admirationTag.targets) {
+                    admirationTag.targets.forEach(targetId => {
+                        if (!c.关系列表[targetId]) c.关系列表[targetId] = { 友情: 0, 爱情: 0 };
+                        c.关系列表[targetId].友情 = Math.min(100, c.关系列表[targetId].友情 + 2);
+                    });
+                }
+
+                // 擅长训练: 每回合层数-1，为0时移除
+                const goodAtTrainingIndex = c.标签组.findIndex(t => t.templateId === '擅长训练');
+                if (goodAtTrainingIndex !== -1) {
+                    c.标签组[goodAtTrainingIndex].层数 -= 1;
+                    if (c.标签组[goodAtTrainingIndex].层数 <= 0) {
+                        c.标签组.splice(goodAtTrainingIndex, 1);
+                    }
                 }
             });
 
@@ -400,9 +476,6 @@ function App() {
             if (!isNaN(key) && key >= 1 && key <= 9) {
                 const event = gameState.pendingEvents[0].event;
                 if (event.选项组 && event.选项组.length >= key) {
-                    // We need to parse text here too technically, but handleOptionSelect will re-parse for log
-                    // However, we need the raw text to match what's on screen if we want accuracy.
-                    // But handleOptionSelect takes index, the text is for logging.
                     const rawText = gameState.pendingEvents[0].event.选项组[key-1].显示文本;
                     handleOptionSelect(key - 1, rawText);
                 }
@@ -465,27 +538,27 @@ function App() {
              <div className="px-4 py-1 rounded-full border border-green-400 bg-green-50">
                 <span className="font-bold text-green-700 text-base">{getTurnDate(gameState.currentTurn)}</span>
              </div>
-             <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-mono">v0.1.251231a</div>
+             <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-mono">v0.1.251231c</div>
         </div>
 
         <div className="hidden md:flex md:w-96 flex-shrink-0 h-full z-10">
             <Sidebar 
                 characters={teamCharacters} 
-                onTagClick={setActiveTag}
+                onTagClick={handleTagClick}
             />
         </div>
 
         <div className="flex-1 flex flex-col h-full relative overflow-hidden">
             <div className="hidden md:flex p-4 border-b bg-white shadow-sm justify-between items-center z-20 flex-shrink-0">
                 <h1 className="text-xl font-bold text-gray-800">怪文书模拟器</h1>
-                <span className="text-xs text-gray-400 font-mono select-none">v0.1.251231a</span>
+                <span className="text-xs text-gray-400 font-mono select-none">v0.1.251231c</span>
             </div>
 
             <div className="flex-1 overflow-y-auto flex flex-col w-full">
                 <div className="md:hidden flex-shrink-0">
                      <MobileCharacterList 
                         characters={teamCharacters} 
-                        onTagClick={setActiveTag}
+                        onTagClick={handleTagClick}
                      />
                 </div>
                 <EventLog logs={gameState.logs} />
@@ -507,9 +580,10 @@ function App() {
         />
 
         <TagModal 
-            isOpen={!!activeTag}
-            tag={activeTag}
-            onClose={() => setActiveTag(null)}
+            isOpen={!!activeTagData}
+            tag={activeTagData?.tag || null}
+            targetNames={activeTagData?.targetNames}
+            onClose={() => setActiveTagData(null)}
         />
         
         <GameControls 

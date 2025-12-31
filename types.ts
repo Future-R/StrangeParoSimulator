@@ -56,6 +56,7 @@ export interface TagTemplate {
   人类可用: boolean;
   马娘可用: boolean;
   开局可选: boolean;
+  显示层数?: boolean; // New: Whether to show stack count in UI
 }
 
 // 运行时标签
@@ -63,6 +64,7 @@ export interface RuntimeTag {
   templateId: string;
   添加日期: number; 
   层数: number; 
+  targets?: string[]; // 新增：对象角色实例ID列表
 }
 
 // 称呼规则
@@ -77,11 +79,12 @@ export interface CharacterTemplate {
   名称: string;
   性别: '男' | '女';
   初始标签: string[];
+  初始标签附带对象?: Record<string, string[]>; // 新增：TagID -> TargetTemplateIDs (e.g. {'宿敌': ['东海帝王']})
   通用属性: Attributes;
   竞赛属性: RaceAttributes;
-  适性?: Aptitudes; // 新增：适性配置
+  适性?: Aptitudes; 
   isTrainer: boolean;
-  称呼列表?: CallingRule[]; // 新增：自定义对训练员的称呼逻辑
+  称呼列表?: CallingRule[]; 
 }
 
 // 运行时角色
@@ -92,27 +95,27 @@ export interface RuntimeCharacter {
   性别: '男' | '女';
   通用属性: Attributes;
   竞赛属性: RaceAttributes;
-  适性?: Aptitudes; // 新增
+  适性?: Aptitudes; 
   标签组: RuntimeTag[];
   已触发事件: Record<string, number>;
   关系列表: Record<string, Relationship>; // Key: Target Instance ID (usually 'p1')
-  称呼列表?: CallingRule[]; // 运行时也保留配置
-  inTeam: boolean; // 新增：是否在队伍中（决定是否显示和行动）
+  称呼列表?: CallingRule[]; 
+  inTeam: boolean; 
 }
 
 // 选项对象
 export interface EventOption {
   显示文本: string;
-  可见条件?: string; // 新增：用于判断该选项是否显示
+  可见条件?: string; 
   操作指令: string; 
 }
 
-// 扩展分支对象：支持逻辑判别后执行指令
+// 扩展分支对象
 export interface EventBranch {
   注释?: string;
-  判别式: string; // 如 "已选序号 == 1 && 随机(1~100) > 50"
-  操作指令: string; // 满足后执行的 DSL
-  跳转事件ID?: string; // 可选的强制后续跳转
+  判别式: string; 
+  操作指令: string; 
+  跳转事件ID?: string; 
 }
 
 // 事件配置
@@ -123,12 +126,12 @@ export interface GameEvent {
   可触发次数: number;
   标签组?: string[];
   触发条件: string; 
-  预操作指令?: string; // New: 触发前立即执行的指令
+  预操作指令?: string; 
   标题?: string;
   正文: string; 
   操作指令?: string; 
   选项组?: EventOption[];
-  分支组?: EventBranch[]; // 新增：逻辑分支
+  分支组?: EventBranch[]; 
 }
 
 // 日志条目
@@ -144,9 +147,9 @@ export interface LogEntry {
 export interface PendingEventItem {
   characterId: string;
   event: GameEvent;
-  variables?: Record<string, any>; // New: 临时变量存储 (Key -> Value/InstanceID)
-  parsedText?: string; // 新增：已解析的正文文本 (保证弹窗和日志一致)
-  parsedTitle?: string; // 新增：已解析的标题文本
+  variables?: Record<string, any>; 
+  parsedText?: string; 
+  parsedTitle?: string; 
 }
 
 // 全局游戏状态
@@ -157,7 +160,7 @@ export interface GameState {
   characters: RuntimeCharacter[];
   logs: LogEntry[];
   pendingEvents: PendingEventItem[]; 
-  currentTurnQueue: string[]; // 新增：本回合待结算的角色实例ID队列
+  currentTurnQueue: string[]; 
   isAuto: boolean;
   autoSpeed: number;
 }

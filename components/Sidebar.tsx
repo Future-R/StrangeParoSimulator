@@ -6,7 +6,7 @@ import { AptitudeModal } from './AptitudeModal';
 
 interface SidebarProps {
   characters: RuntimeCharacter[];
-  onTagClick: (tag: TagTemplate) => void;
+  onTagClick: (tag: RuntimeTag) => void;
 }
 
 // 进度条组件
@@ -42,7 +42,7 @@ export const RaceAttrBlock = ({ label, value, color }: { label: string, value: n
 );
 
 // 标签组件 (可点击)
-export const TagChip: React.FC<{ tag: RuntimeTag; onClick?: (t: TagTemplate) => void }> = ({ tag, onClick }) => {
+export const TagChip: React.FC<{ tag: RuntimeTag; onClick?: (t: RuntimeTag) => void }> = ({ tag, onClick }) => {
     const template = TAGS[tag.templateId];
     if (!template) return null;
     
@@ -69,11 +69,14 @@ export const TagChip: React.FC<{ tag: RuntimeTag; onClick?: (t: TagTemplate) => 
 
     return (
         <button 
-            onClick={(e) => { e.stopPropagation(); onClick?.(template); }}
-            className={`${bg} ${text} ${border} text-xs font-bold me-1.5 px-2 py-1 rounded border inline-block mb-1 shadow-sm hover:opacity-80 active:scale-95 transition-all`} 
+            onClick={(e) => { e.stopPropagation(); onClick?.(tag); }}
+            className={`${bg} ${text} ${border} text-xs font-bold me-1.5 px-2 py-1 rounded border inline-flex items-center mb-1 shadow-sm hover:opacity-80 active:scale-95 transition-all`} 
             title={template.描述}
         >
             {template.显示名}
+            {template.显示层数 && tag.层数 > 0 && (
+                <span className="ml-1 px-1 bg-black/20 rounded text-[10px] min-w-[14px] text-center">{tag.层数}</span>
+            )}
         </button>
     );
 }

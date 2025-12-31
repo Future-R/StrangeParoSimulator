@@ -1,12 +1,12 @@
 
 import React, { useState } from 'react';
-import { RuntimeCharacter, TagTemplate, Aptitudes } from '../types';
+import { RuntimeCharacter, TagTemplate, Aptitudes, RuntimeTag } from '../types';
 import { StatusBar, AttrBox, TagChip, RaceAttrBlock } from './Sidebar';
 import { AptitudeModal } from './AptitudeModal';
 
 interface MobileCharacterListProps {
   characters: RuntimeCharacter[];
-  onTagClick: (tag: TagTemplate) => void;
+  onTagClick: (tag: RuntimeTag) => void;
 }
 
 export const MobileCharacterList: React.FC<MobileCharacterListProps> = ({ characters, onTagClick }) => {

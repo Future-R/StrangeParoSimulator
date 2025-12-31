@@ -1,13 +1,15 @@
+
 import React from 'react';
 import { TagTemplate } from '../types';
 
 interface TagModalProps {
   isOpen: boolean;
   tag: TagTemplate | null;
+  targetNames?: string[];
   onClose: () => void;
 }
 
-export const TagModal: React.FC<TagModalProps> = ({ isOpen, tag, onClose }) => {
+export const TagModal: React.FC<TagModalProps> = ({ isOpen, tag, targetNames, onClose }) => {
   if (!isOpen || !tag) return null;
 
   // Default R1: 灰铁
@@ -53,6 +55,17 @@ export const TagModal: React.FC<TagModalProps> = ({ isOpen, tag, onClose }) => {
          </div>
          <div className="p-6 bg-white">
             <p className="text-gray-600 leading-relaxed text-base font-medium whitespace-pre-line">{tag.描述}</p>
+            {targetNames && targetNames.length > 0 && (
+                <div className="mt-4 pt-3 border-t border-dashed border-gray-200">
+                    <div className="flex flex-wrap gap-2">
+                        {targetNames.slice(0, 3).map((name, idx) => (
+                            <span key={idx} className="text-sm bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg border border-blue-100 font-bold shadow-sm">
+                                {name}
+                            </span>
+                        ))}
+                    </div>
+                </div>
+            )}
          </div>
          <div className="p-3 border-t border-gray-100 bg-gray-50 flex justify-end">
              <button onClick={onClose} className="px-5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-bold transition-colors">
