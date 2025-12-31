@@ -1172,11 +1172,30 @@ export const triggerCharacterEvent = (gameState: GameState, charId: string, spec
   });
   
   const subjectChar = newChars.find(c => c.instanceId === charId)!;
-
-  // Auto-Resolve Logic for events WITHOUT options
+  const hasSplitPersonality = subjectChar.标签组.some(t => t.templateId === '多重人格');
   const hasOptions = eventToTrigger.选项组 && eventToTrigger.选项组.length > 0;
 
-  if (!hasOptions) {
+  // Split Personality Logic Check
+  let autoResolve = !hasOptions;
+  let splitPersonalityTriggered = false;
+  let forcedOptionIndex = -1;
+
+  if (hasSplitPersonality) {
+      if (hasOptions) {
+          if (Math.random() < 0.5) { // 50% chance for events with options
+              autoResolve = true; // Force auto-resolve
+              splitPersonalityTriggered = true;
+              forcedOptionIndex = Math.floor(Math.random() * eventToTrigger.选项组!.length);
+          }
+      } else {
+          if (Math.random() < 0.2) { // 20% chance for optionless events
+              splitPersonalityTriggered = true;
+          }
+      }
+  }
+
+  // Handle Logic
+  if (autoResolve) {
       // 1. Snapshot State
       const snapshotChars = JSON.parse(JSON.stringify(newChars));
 
@@ -1189,27 +1208,59 @@ export const triggerCharacterEvent = (gameState: GameState, charId: string, spec
 
       // 3. Main Actions
       let nextEventId: string | undefined = undefined;
-      if (eventToTrigger.操作指令) {
-          const res = executeAction(eventToTrigger.操作指令, subjectChar, gameState.currentTurn, newChars, currentVariables, true, eventToTrigger.标签组);
-          if (res.nextEventId) nextEventId = res.nextEventId;
-          if (res.newVariables) currentVariables = res.newVariables;
-      }
 
-      // 4. Branch Logic (Auto)
-      if (eventToTrigger.分支组) {
-          for (const branch of eventToTrigger.分支组) {
-              if (checkCondition(branch.判别式, subjectChar, gameState.currentTurn, undefined, newChars, currentVariables)) {
-                  const bRes = executeAction(branch.操作指令, subjectChar, gameState.currentTurn, newChars, currentVariables, true, eventToTrigger.标签组);
-                  if (bRes.nextEventId) nextEventId = bRes.nextEventId;
-                  if (branch.跳转事件ID) nextEventId = branch.跳转事件ID;
-                  if (bRes.newVariables) currentVariables = bRes.newVariables;
-                  break;
-              }
-          }
+      if (hasOptions && splitPersonalityTriggered) {
+           // --- FORCED OPTION EXECUTION ---
+           const selectedOption = eventToTrigger.选项组![forcedOptionIndex];
+           
+           // Execute Option Action
+           const res = executeAction(selectedOption.操作指令, subjectChar, gameState.currentTurn, newChars, currentVariables, true, eventToTrigger.标签组);
+           if (res.nextEventId) nextEventId = res.nextEventId;
+           if (res.newVariables) currentVariables = res.newVariables;
+
+           // Check Branches (forced index)
+           if (eventToTrigger.分支组) {
+                for (const branch of eventToTrigger.分支组) {
+                    if (checkCondition(branch.判别式, subjectChar, gameState.currentTurn, forcedOptionIndex + 1, newChars, currentVariables)) {
+                        const bRes = executeAction(branch.操作指令, subjectChar, gameState.currentTurn, newChars, currentVariables, true, eventToTrigger.标签组);
+                        if (bRes.nextEventId) nextEventId = bRes.nextEventId;
+                        if (branch.跳转事件ID) nextEventId = branch.跳转事件ID;
+                        if (bRes.newVariables) currentVariables = bRes.newVariables;
+                        break;
+                    }
+                }
+           }
+
+           // Compensation Recovery
+           executeAction('属性变更 体力 5; 属性变更 精力 5', subjectChar, gameState.currentTurn, newChars, currentVariables, true);
+
+      } else {
+           // --- STANDARD OPTIONLESS EXECUTION ---
+           if (eventToTrigger.操作指令) {
+                const res = executeAction(eventToTrigger.操作指令, subjectChar, gameState.currentTurn, newChars, currentVariables, true, eventToTrigger.标签组);
+                if (res.nextEventId) nextEventId = res.nextEventId;
+                if (res.newVariables) currentVariables = res.newVariables;
+           }
+           if (eventToTrigger.分支组) {
+                for (const branch of eventToTrigger.分支组) {
+                    if (checkCondition(branch.判别式, subjectChar, gameState.currentTurn, undefined, newChars, currentVariables)) {
+                        const bRes = executeAction(branch.操作指令, subjectChar, gameState.currentTurn, newChars, currentVariables, true, eventToTrigger.标签组);
+                        if (bRes.nextEventId) nextEventId = bRes.nextEventId;
+                        if (branch.跳转事件ID) nextEventId = branch.跳转事件ID;
+                        if (bRes.newVariables) currentVariables = bRes.newVariables;
+                        break;
+                    }
+                }
+           }
       }
 
       // 5. Parse Text
-      const parsedText = parseText(eventToTrigger.正文, subjectChar, gameState.currentTurn, newChars, currentVariables);
+      let parsedText = '';
+      if (splitPersonalityTriggered) {
+          parsedText = `${subjectChar.名称}没有这段记忆。`;
+      } else {
+          parsedText = parseText(eventToTrigger.正文, subjectChar, gameState.currentTurn, newChars, currentVariables);
+      }
       
       // 6. Diff Log
       const diffLogs = generateStateDiffLog(snapshotChars, newChars, charId);
@@ -1217,18 +1268,40 @@ export const triggerCharacterEvent = (gameState: GameState, charId: string, spec
           ? `<div class='mt-1 text-xs font-bold text-gray-500'>(${diffLogs.join(', ')})</div>`
           : "";
 
+      // Logic change: Determine where to attach effects
+      let eventLogText = parsedText;
+      let choiceLogText = '选择了【你不知道做出了什么选择】';
+
+      if (splitPersonalityTriggered && hasOptions) {
+          choiceLogText += effectHtml; // Effect goes to choice log
+      } else {
+          eventLogText += effectHtml; // Effect goes to event log (default or optionless split personality)
+      }
+
       const logEntry: LogEntry = {
           turn: gameState.currentTurn,
           characterName: subjectChar.名称,
-          text: parsedText + effectHtml,
+          text: eventLogText,
           type: 'event',
-          isImportant: !!eventToTrigger.标题
+          isImportant: !!eventToTrigger.标题 && !splitPersonalityTriggered // Hide importance indicator if amnesiac
       };
+
+      const newLogs = [...gameState.logs, logEntry];
+
+      // Add Forced Choice Log
+      if (splitPersonalityTriggered && hasOptions) {
+          newLogs.push({
+              turn: gameState.currentTurn,
+              characterName: subjectChar.名称,
+              text: choiceLogText,
+              type: 'choice'
+          });
+      }
 
       const newState = {
           ...gameState,
           characters: newChars,
-          logs: [...gameState.logs, logEntry]
+          logs: newLogs
       };
 
       // 7. Handle Jump (Recursion)

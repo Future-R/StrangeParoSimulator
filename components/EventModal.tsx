@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { GameEvent, RuntimeCharacter } from '../types';
 import { parseText, checkCondition } from '../services/engine';
@@ -22,7 +21,7 @@ export const EventModal: React.FC<EventModalProps> = ({
   const [buttonsDisabled, setButtonsDisabled] = useState(false);
   const [progress, setProgress] = useState(0);
   const [isMinimized, setIsMinimized] = useState(false);
-  const animationFrameRef = useRef<number>();
+  const animationFrameRef = useRef<number>(0);
 
   // Find current character for context if possible
   const currentChar = characters.find(c => c.名称 === characterName) || characters[0];
