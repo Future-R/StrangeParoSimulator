@@ -8,10 +8,18 @@ import { TagModal } from './components/TagModal';
 import { SetupScreen } from './components/SetupScreen';
 import { MobileCharacterList } from './components/MobileCharacterList';
 import { GameState, RuntimeCharacter, LogEntry, TagTemplate, RuntimeTag, Relationship } from './types';
-import { createRuntimeCharacter, triggerCharacterEvent, executeAction, checkCondition, getTurnDate, parseText, generateStateDiffLog } from './services/engine';
+import { createRuntimeCharacter, triggerCharacterEvent, resolvePendingEvent, getTurnDate, parseText, checkCondition } from './services/engine';
 import { CHARACTERS, EVENTS, ENDING_EVENTS, TAGS } from './constants';
 
 const INITIAL_MAX_TURNS = 72;
+
+// Add global type declaration
+declare global {
+  interface Window {
+    GameDebug: GameState;
+    printRelations: (subjectId?: string) => void;
+  }
+}
 
 const createInitialState = (): GameState => {
     return {
@@ -31,48 +39,37 @@ function App() {
   const [gameState, setGameState] = useState<GameState>(createInitialState());
   const [activeTagData, setActiveTagData] = useState<{ tag: TagTemplate, targetNames?: string[] } | null>(null);
 
-  // DEBUG: Expose state to console
   useEffect(() => {
+    // Debuggers
     // @ts-ignore
     window.GameDebug = gameState;
-    
-    // @ts-ignore
-    window.printRelations = () => {
-        console.table(
-            gameState.characters
-                .filter(c => c.instanceId !== 'p1')
-                .map(c => ({
-                    姓名: c.名称,
-                    友情: c.关系列表['p1']?.友情 || 0,
-                    爱情: c.关系列表['p1']?.爱情 || 0,
-                    爱欲: c.通用属性.爱欲
-                }))
-        );
+
+    window.printRelations = (subjectId: string = 'p1') => {
+        const subject = gameState.characters.find(c => c.instanceId === subjectId);
+        if (!subject) {
+            console.error(`Character with ID ${subjectId} not found.`);
+            return;
+        }
+
+        const data = gameState.characters
+            .filter(c => c.instanceId !== subjectId)
+            .map(target => {
+                const relTo = subject.关系列表[target.instanceId] || { 友情: 0, 爱情: 0 };
+                const relFrom = target.关系列表[subject.instanceId] || { 友情: 0, 爱情: 0 };
+                return {
+                    '角色名': target.名称,
+                    'ID': target.instanceId,
+                    '我对TA(友情)': relTo.友情,
+                    '我对TA(爱情)': relTo.爱情,
+                    'TA对我(友情)': relFrom.友情,
+                    'TA对我(爱情)': relFrom.爱情,
+                };
+            });
+        
+        console.log(`=== 【${subject.名称}】的人际关系表 ===`);
+        console.table(data);
     };
 
-    // @ts-ignore
-    window.queryRelations = (nameOrId: string) => {
-        const chars = gameState.characters;
-        const target = chars.find(c => c.名称 === nameOrId || c.instanceId === nameOrId);
-        if (!target) return console.error('Character not found');
-
-        console.group(`Relations for ${target.名称}`);
-        console.log('--- TO OTHERS ---');
-        Object.entries(target.关系列表).forEach(([tid, rel]) => {
-            const r = rel as Relationship;
-            const t = chars.find(c => c.instanceId === tid);
-            console.log(`To ${t?.名称}: 友情${r.友情}, 爱情${r.爱情}`);
-        });
-        console.log('--- FROM OTHERS ---');
-        chars.forEach(c => {
-            if (c === target) return;
-            const rel = c.关系列表[target.instanceId];
-            if (rel) {
-                console.log(`From ${c.名称}: 友情${rel.友情}, 爱情${rel.爱情}`);
-            }
-        });
-        console.groupEnd();
-    };
   }, [gameState]);
 
   const handleTagClick = (runtimeTag: RuntimeTag) => {
@@ -86,36 +83,26 @@ function App() {
               return c ? c.名称 : '未知';
           });
       }
-      
       setActiveTagData({ tag: template, targetNames });
   };
 
   const handleSetupComplete = (name: string, gender: '男'|'女', selectedTags: string[]) => {
-      // 1. Determine Starter Uma (Random from a subset)
       const umaKeys = ['优秀素质', '东海帝王', '摩耶重炮', '米浴', '北部玄驹', '无声铃鹿'];
       const randomUmaKey = umaKeys[Math.floor(Math.random() * umaKeys.length)];
 
-      // 2. Create All Characters
       const allCharacters: RuntimeCharacter[] = [];
-      
-      // Create Trainer (Player) - Always 'p1'
       const trainer = createRuntimeCharacter(CHARACTERS['训练员'], 'p1', true, name, gender, selectedTags);
       allCharacters.push(trainer);
 
-      // Create everyone else
       Object.values(CHARACTERS).forEach(tpl => {
-          if (tpl.id === '训练员') return; // Already created
-
+          if (tpl.id === '训练员') return;
           const isStarter = tpl.id === randomUmaKey;
           const instanceId = isStarter ? 'c1' : `npc_${tpl.id}`;
-          
-          const char = createRuntimeCharacter(tpl, instanceId, isStarter); // Only starter is inTeam initially
+          const char = createRuntimeCharacter(tpl, instanceId, isStarter); 
           allCharacters.push(char);
       });
 
       const starterUma = allCharacters.find(c => c.instanceId === 'c1');
-      
-      // 3. Resolve Tag Targets (Post-Creation)
       allCharacters.forEach(char => {
           const tpl = CHARACTERS[char.templateId];
           if (tpl && tpl.初始标签附带对象) {
@@ -124,7 +111,6 @@ function App() {
                   if (tag) {
                       const resolvedTargets: string[] = [];
                       targetTplIds.forEach(tTplId => {
-                          // Find instance by template ID
                           const targetChar = allCharacters.find(c => c.templateId === tTplId);
                           if (targetChar) resolvedTargets.push(targetChar.instanceId);
                       });
@@ -134,12 +120,11 @@ function App() {
           }
       });
 
-      // Fix: Populate queue immediately for Turn 1
       const starterQueue = allCharacters.filter(c => c.inTeam).map(c => c.instanceId);
 
       setGameState({
           gamePhase: 'playing',
-          currentTurn: 1, // Start at Turn 1 (Early Jan)
+          currentTurn: 1, 
           maxTurns: INITIAL_MAX_TURNS,
           characters: allCharacters,
           logs: [{
@@ -155,221 +140,9 @@ function App() {
       });
   };
 
+  // Simplified using resolvePendingEvent from engine
   const handleOptionSelect = useCallback((optionIndex: number, displayText: string) => {
-    setGameState(prev => {
-        if (prev.pendingEvents.length === 0) return prev;
-
-        const currentEventItem = prev.pendingEvents[0];
-        const { characterId, event, variables: initialVariables } = currentEventItem;
-        
-        // 1. Snapshot State Before Action
-        const snapshotCharacters = JSON.parse(JSON.stringify(prev.characters)) as RuntimeCharacter[];
-        
-        // 2. Prepare Mutable State
-        let newCharacters = JSON.parse(JSON.stringify(prev.characters)) as RuntimeCharacter[];
-        let char = newCharacters.find(c => c.instanceId === characterId);
-        // Mutable Variables
-        let variables = { ...initialVariables };
-        
-        if (!char) return prev;
-
-        // --- ADD NARRATIVE LOG (Fix for missing history) ---
-        let newLogs = [...prev.logs];
-        if (currentEventItem.parsedText) {
-             newLogs.push({
-                turn: prev.currentTurn,
-                characterName: char.名称,
-                text: currentEventItem.parsedText,
-                type: 'event',
-                isImportant: !!currentEventItem.event.标题
-            });
-        }
-
-        let jumpId: string | undefined = undefined;
-
-        // Special handling for "Continue" button (optionIndex === -1)
-        if (optionIndex === -1) {
-            // No action needed for continue
-        } else {
-             const option = event.选项组?.[optionIndex];
-             if (option) {
-                // Execute Action (Silent)
-                const res = executeAction(option.操作指令, char, prev.currentTurn, newCharacters, variables, true, event.标签组);
-                if (res.nextEventId) jumpId = res.nextEventId;
-
-                // Process Branches (Silent)
-                if (event.分支组) {
-                    for (const branch of event.分支组) {
-                        if (checkCondition(branch.判别式, char, prev.currentTurn, optionIndex + 1, newCharacters, variables)) {
-                            const bRes = executeAction(branch.操作指令, char, prev.currentTurn, newCharacters, variables, true, event.标签组);
-                            if (bRes.nextEventId) jumpId = bRes.nextEventId;
-                            if (branch.跳转事件ID) jumpId = branch.跳转事件ID;
-                            break;
-                        }
-                    }
-                }
-             }
-        }
-        
-        // Auto Branches for Continue (Silent)
-        if (optionIndex === -1 && event.分支组) {
-             for (const branch of event.分支组) {
-                if (checkCondition(branch.判别式, char, prev.currentTurn, undefined, newCharacters, variables)) {
-                    const bRes = executeAction(branch.操作指令, char, prev.currentTurn, newCharacters, variables, true, event.标签组);
-                    if (bRes.nextEventId) jumpId = bRes.nextEventId;
-                    if (branch.跳转事件ID) jumpId = branch.跳转事件ID;
-                    break;
-                }
-            }
-        }
-
-        // --- Tag Logic (Silent) ---
-        if (event.标签组?.includes('工作') && char.标签组.some(t => t.templateId === '社畜')) {
-            if (char.通用属性.体力 >= 5 && char.通用属性.心情 >= 5) {
-                char.通用属性.体力 -= 5;
-                char.通用属性.心情 -= 5;
-                char.通用属性.精力 = Math.min(100, char.通用属性.精力 + 10);
-            }
-        }
-
-        // --- Diffing to Generate Clean Log ---
-        const diffLogs = generateStateDiffLog(snapshotCharacters, newCharacters, characterId);
-        
-        const effectHtml = diffLogs.length > 0 
-            ? `<div class='mt-1 text-xs font-bold text-gray-500'>(${diffLogs.join(', ')})</div>`
-            : "";
-        
-        if (optionIndex !== -1) {
-            // Need to parse option text again here for log to be correct if variables used
-            const parsedDisplayText = parseText(displayText, char, prev.currentTurn, newCharacters, variables);
-            newLogs.push({
-                turn: prev.currentTurn,
-                characterName: char.名称,
-                text: `选择了【${parsedDisplayText}】${effectHtml}`,
-                type: 'choice'
-            });
-        } else if (effectHtml) {
-             newLogs.push({
-                turn: prev.currentTurn,
-                characterName: '系统',
-                text: `结果 ${effectHtml}`,
-                type: 'system'
-            });
-        }
-
-        let remainingEvents = prev.pendingEvents.slice(1);
-        
-        // --- JUMP LOGIC (Chain Resolution) ---
-        let currentJumpId = jumpId;
-        
-        while (currentJumpId) {
-            const nextEvent = EVENTS.find(e => e.id === currentJumpId);
-            currentJumpId = undefined; // Reset for next iteration
-
-            if (nextEvent) {
-                const nextChar = char; // Same character context
-
-                // 1. Pre-action
-                if (nextEvent.预操作指令) {
-                     const preRes = executeAction(nextEvent.预操作指令, nextChar, prev.currentTurn, newCharacters, variables, true, nextEvent.标签组);
-                     variables = { ...variables, ...(preRes.newVariables || {}) }; // Merge variables
-                }
-
-                // 2. Check Options
-                const hasOptions = nextEvent.选项组 && nextEvent.选项组.length > 0;
-
-                // 3. Execution (Actions & Branches)
-                let jumpEffectHtml = '';
-                
-                // If it has options, we stop chaining and queue it.
-                // If it DOES NOT have options, we execute its logic and check for further jumps.
-                if (!hasOptions) {
-                    const preJumpSnapshot = JSON.parse(JSON.stringify(newCharacters)) as RuntimeCharacter[];
-                    let chainedJumpId: string | undefined = undefined;
-
-                    // A. Execute Action
-                    if (nextEvent.操作指令) {
-                        const res = executeAction(nextEvent.操作指令, nextChar, prev.currentTurn, newCharacters, variables, true, nextEvent.标签组);
-                        if (res.nextEventId) chainedJumpId = res.nextEventId;
-                    }
-
-                    // B. Check Branches (Auto)
-                    if (nextEvent.分支组) {
-                        for (const branch of nextEvent.分支组) {
-                            if (checkCondition(branch.判别式, nextChar, prev.currentTurn, undefined, newCharacters, variables)) {
-                                const bRes = executeAction(branch.操作指令, nextChar, prev.currentTurn, newCharacters, variables, true, nextEvent.标签组);
-                                if (bRes.nextEventId) chainedJumpId = bRes.nextEventId;
-                                if (branch.跳转事件ID) chainedJumpId = branch.跳转事件ID;
-                                break;
-                            }
-                        }
-                    }
-
-                    // Log Diff
-                    const jumpDiffs = generateStateDiffLog(preJumpSnapshot, newCharacters, characterId);
-                    if (jumpDiffs.length > 0) {
-                        jumpEffectHtml = `<div class='mt-2 pt-2 border-t border-dashed border-gray-200 text-xs text-gray-400 font-bold'>${jumpDiffs.join('  ')}</div>`;
-                    }
-
-                    // Log Text
-                    const parsedText = parseText(nextEvent.正文, nextChar, prev.currentTurn, newCharacters, variables) + jumpEffectHtml;
-                    newLogs.push({
-                        turn: prev.currentTurn,
-                        characterName: nextChar.名称,
-                        text: parsedText,
-                        type: 'event',
-                        isImportant: !!nextEvent.标题
-                    });
-
-                    // Set next jump for loop
-                    currentJumpId = chainedJumpId;
-
-                } else {
-                    // Has options -> Queue it and stop loop
-                    const parsedText = parseText(nextEvent.正文, nextChar, prev.currentTurn, newCharacters, variables);
-                    const parsedTitle = nextEvent.标题 ? parseText(nextEvent.标题, nextChar, prev.currentTurn, newCharacters, variables) : undefined;
-                    
-                    remainingEvents = [{ 
-                        characterId, 
-                        event: nextEvent,
-                        variables: { ...variables }, // Copy current state of variables
-                        parsedText,
-                        parsedTitle
-                    }, ...remainingEvents];
-                    
-                    // Loop ends here naturally as currentJumpId is undefined
-                }
-            }
-        }
-
-        // --- CHECK IF THIS WAS AN ENDING ---
-        if (currentEventItem.event.标签组?.includes('结局')) {
-             return {
-                ...prev,
-                characters: newCharacters,
-                logs: newLogs,
-                pendingEvents: [],
-                gamePhase: 'gameover'
-            };
-        }
-
-        if (prev.currentTurn > prev.maxTurns && remainingEvents.length === 0) {
-            return {
-                ...prev,
-                characters: newCharacters,
-                logs: newLogs,
-                pendingEvents: [],
-                gamePhase: 'gameover'
-            };
-        }
-
-        return {
-            ...prev,
-            characters: newCharacters,
-            logs: newLogs,
-            pendingEvents: remainingEvents,
-        };
-    });
+    setGameState(prev => resolvePendingEvent(prev, optionIndex));
   }, []); 
 
   const handleNextTurn = useCallback(() => {
@@ -379,17 +152,11 @@ function App() {
         let newState = { ...prev };
         let nextQueue = [...prev.currentTurnQueue];
 
-        // 1. If queue is empty, try to advance turn
         if (nextQueue.length === 0) {
-            
-            // --- MID-GAME ENDING CHECK (Negative Basic Stats) ---
-            // Check all characters in team for negative BASIC attributes (Con, Int, Chr, Wealth)
-            // Survival attributes (HP, Mood) are now clamped at 0.
+            // Bad Ending Check
             for (const char of prev.characters) {
                 if (!char.inTeam) continue;
-                
                 let badEndId: string | null = null;
-                // Survival check: Constitution, Intelligence, Charm, Wealth
                 if (char.通用属性.体质 < 0) badEndId = 'ending_low_con';
                 else if (char.通用属性.学识 < 0) badEndId = 'ending_low_int';
                 else if (char.通用属性.魅力 < 0) badEndId = 'ending_low_chr';
@@ -397,24 +164,18 @@ function App() {
 
                 if (badEndId) {
                     const endEvent = ENDING_EVENTS.find(e => e.id === badEndId);
-                    if (endEvent) {
-                        return triggerCharacterEvent(newState, char.instanceId, endEvent);
-                    }
+                    if (endEvent) return triggerCharacterEvent(newState, char.instanceId, endEvent);
                 }
             }
 
             const nextTurn = prev.currentTurn + 1;
             
-            // --- ENDING CHECK (MAX TURNS) ---
+            // Max Turn Ending
             if (nextTurn > prev.maxTurns) {
                  newState.currentTurn = nextTurn;
                  const endingEvent = ENDING_EVENTS.find(e => checkCondition(e.触发条件, prev.characters[0], nextTurn, undefined, prev.characters));
-                 
-                 if (endingEvent) {
-                     return triggerCharacterEvent(newState, 'p1', endingEvent);
-                 } else {
-                     return { ...prev, gamePhase: 'gameover', isAuto: false };
-                 }
+                 if (endingEvent) return triggerCharacterEvent(newState, 'p1', endingEvent);
+                 return { ...prev, gamePhase: 'gameover', isAuto: false };
             }
             
             newState.currentTurn = nextTurn;
@@ -425,14 +186,9 @@ function App() {
                 type: 'system'
             }];
             
-            // Apply Per-Turn Passives
+            // Turn Passives
             newState.characters.forEach(c => {
-                // 好色: 每回合爱欲+2
-                if (c.标签组.some(t => t.templateId === '好色')) {
-                    c.通用属性.爱欲 = Math.min(100, c.通用属性.爱欲 + 2);
-                }
-                
-                // 憧憬: 每回合对目标增加2友情
+                if (c.标签组.some(t => t.templateId === '好色')) c.通用属性.爱欲 = Math.min(100, c.通用属性.爱欲 + 2);
                 const admirationTag = c.标签组.find(t => t.templateId === '憧憬');
                 if (admirationTag && admirationTag.targets) {
                     admirationTag.targets.forEach(targetId => {
@@ -440,27 +196,22 @@ function App() {
                         c.关系列表[targetId].友情 = Math.min(100, c.关系列表[targetId].友情 + 2);
                     });
                 }
-
-                // 擅长训练: 每回合层数-1，为0时移除
                 const goodAtTrainingIndex = c.标签组.findIndex(t => t.templateId === '擅长训练');
                 if (goodAtTrainingIndex !== -1) {
                     c.标签组[goodAtTrainingIndex].层数 -= 1;
-                    if (c.标签组[goodAtTrainingIndex].层数 <= 0) {
-                        c.标签组.splice(goodAtTrainingIndex, 1);
-                    }
+                    if (c.标签组[goodAtTrainingIndex].层数 <= 0) c.标签组.splice(goodAtTrainingIndex, 1);
                 }
             });
 
+            // Regenerate Queue based on LATEST inTeam status
+            // This ensures characters who joined in the previous turn (and had inTeam set to true) are included.
             nextQueue = prev.characters.filter(c => c.inTeam).map(c => c.instanceId);
         }
 
-        // 2. Process next character in queue
         const targetId = nextQueue.shift();
         newState.currentTurnQueue = nextQueue;
         
-        if (targetId) {
-            return triggerCharacterEvent(newState, targetId);
-        }
+        if (targetId) return triggerCharacterEvent(newState, targetId);
         return newState;
     });
   }, []);
@@ -476,8 +227,7 @@ function App() {
             if (!isNaN(key) && key >= 1 && key <= 9) {
                 const event = gameState.pendingEvents[0].event;
                 if (event.选项组 && event.选项组.length >= key) {
-                    const rawText = gameState.pendingEvents[0].event.选项组[key-1].显示文本;
-                    handleOptionSelect(key - 1, rawText);
+                    handleOptionSelect(key - 1, "");
                 }
             }
             return;
@@ -485,11 +235,8 @@ function App() {
 
         if (e.code === 'Space' || e.code === 'Enter') {
             e.preventDefault(); 
-            if (gameState.gamePhase === 'gameover') {
-                restartGame();
-            } else {
-                handleNextTurn();
-            }
+            if (gameState.gamePhase === 'gameover') restartGame();
+            else handleNextTurn();
         }
     };
 
@@ -516,17 +263,9 @@ function App() {
     ? gameState.characters.find(c => c.instanceId === currentPendingEvent.characterId)
     : undefined;
 
-  const parsedModalText = currentPendingEvent?.parsedText 
-    ? currentPendingEvent.parsedText
-    : (currentPendingEvent && currentPendingChar
-        ? parseText(currentPendingEvent.event.正文, currentPendingChar, gameState.currentTurn, gameState.characters, currentPendingEvent.variables)
-        : undefined);
-
-  const parsedModalTitle = currentPendingEvent?.parsedTitle
-    ? currentPendingEvent.parsedTitle
-    : (currentPendingEvent && currentPendingChar && currentPendingEvent.event.标题
-        ? parseText(currentPendingEvent.event.标题, currentPendingChar, gameState.currentTurn, gameState.characters, currentPendingEvent.variables)
-        : undefined);
+  // Since we pre-calculate in engine, we can use it directly, fallback to on-the-fly parsing
+  const parsedModalText = currentPendingEvent?.parsedText;
+  const parsedModalTitle = currentPendingEvent?.parsedTitle;
 
   const hasPendingActions = gameState.currentTurnQueue.length > 0;
   const teamCharacters = gameState.characters.filter(c => c.inTeam);
@@ -538,7 +277,7 @@ function App() {
              <div className="px-4 py-1 rounded-full border border-green-400 bg-green-50">
                 <span className="font-bold text-green-700 text-base">{getTurnDate(gameState.currentTurn)}</span>
              </div>
-             <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-mono">v0.1.251231d</div>
+             <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-mono">v0.1.251231e</div>
         </div>
 
         <div className="hidden md:flex md:w-96 flex-shrink-0 h-full z-10">
@@ -551,7 +290,7 @@ function App() {
         <div className="flex-1 flex flex-col h-full relative overflow-hidden">
             <div className="hidden md:flex p-4 border-b bg-white shadow-sm justify-between items-center z-20 flex-shrink-0">
                 <h1 className="text-xl font-bold text-gray-800">怪文书模拟器</h1>
-                <span className="text-xs text-gray-400 font-mono select-none">v0.1.251231d</span>
+                <span className="text-xs text-gray-400 font-mono select-none">v0.1.251231e</span>
             </div>
 
             <div className="flex-1 overflow-y-auto flex flex-col w-full">
