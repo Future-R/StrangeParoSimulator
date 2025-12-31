@@ -345,10 +345,11 @@ export const resolvePendingEvent = (gameState: GameState, optionIndex: number): 
     const currentItem = gameState.pendingEvents[0];
     const { characterId, event, variables } = currentItem;
     
-    // Remove current pending event
+    // Remove current pending event AND copy logs to avoid mutation
     const baseState = {
         ...gameState,
-        pendingEvents: gameState.pendingEvents.slice(1)
+        pendingEvents: gameState.pendingEvents.slice(1),
+        logs: [...gameState.logs] // Copy logs array to ensure purity
     };
 
     const char = baseState.characters.find(c => c.instanceId === characterId)!;

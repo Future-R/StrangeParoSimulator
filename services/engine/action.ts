@@ -18,7 +18,11 @@ export const executeAction = (
     const commands = commandStr.split(';').map(s => s.trim()).filter(s => s);
     const result: { newVariables?: Record<string, any>, nextEventId?: string } = { newVariables: {} };
 
-    commands.forEach(cmd => {
+    commands.forEach(rawCmd => {
+        // 1. Normalization for common natural language typos/aliases
+        // Supports: "训练员.属性变更" -> "训练员.属性变更"
+        let cmd = rawCmd.replace(/^训练员.属性变更/, '训练员.属性变更');
+
         const ifIndex = cmd.lastIndexOf(' 若 ');
         if (ifIndex !== -1) {
             const condition = cmd.substring(ifIndex + 3).trim();
@@ -35,6 +39,7 @@ export const executeAction = (
         let target = subject;
         let actionParts = parts;
 
+        // Target Resolution (Syntax: "TargetName.Action")
         if (op.includes('.')) {
             const [targetKey, realOp] = op.split('.');
             const resolved = resolveTargetCharacter(targetKey, subject, allChars, variables);
@@ -63,7 +68,8 @@ export const executeAction = (
             }
             case '关系变更': {
                 const fullCmd = actionParts.join(' ');
-                const funcMatch = fullCmd.match(/关系变更\(([^,]+),\s*([^,]+),\s*([^,]+),\s*([^)]+)\)/);
+                // Fixed regex: Use (.+) for the last argument to allow nested parentheses like 随机(5~15)
+                const funcMatch = fullCmd.match(/关系变更\(([^,]+),\s*([^,]+),\s*([^,]+),\s*(.+)\)/);
                 if (funcMatch) {
                     const type = funcMatch[1].trim() as '友情' | '爱情';
                     const targetKey = funcMatch[2].trim(); 
@@ -94,7 +100,8 @@ export const executeAction = (
             case '双向关系变更(友情,': 
             {
                 const fullCmd = actionParts.join(' ');
-                const match = fullCmd.match(/双向关系变更\(([^,]+),\s*([^/]+)\/([^,]+),\s*([^)]+)\)/);
+                // Fixed regex: Use (.+) for the last argument to allow nested parentheses like 随机(5~15)
+                const match = fullCmd.match(/双向关系变更\(([^,]+),\s*([^/]+)\/([^,]+),\s*(.+)\)/);
                 if (match) {
                     const type = match[1].trim() as '友情' | '爱情';
                     const charAKey = match[2].trim();
