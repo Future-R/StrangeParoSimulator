@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TS 事件数据编辑器 v3.0 (Ultimate)</title>
+    <title>TS 事件数据编辑器 v1.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -33,7 +32,7 @@
         body { 
             background-color: var(--bg-color); 
             color: var(--text-color); 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            font-family: 'Microsoft YaHei', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
             margin: 0; 
             overflow: hidden; 
         }
@@ -126,7 +125,7 @@
         .btn {
             padding: 4px 12px;
             border-radius: 2px;
-            font-size: 0.85rem;
+            font-size: 0.85rem; 
             cursor: pointer;
             border: none;
             color: white;
@@ -141,8 +140,89 @@
         .btn-success:hover { opacity: 0.9; }
         .btn-danger { background-color: #a12626; }
         .btn-danger:hover { opacity: 0.9; }
+        .btn-info { background-color: #17a2b8; }
+        .btn-info:hover { opacity: 0.9; }
         .btn-icon { background: transparent; color: #aaa; padding: 4px; }
         .btn-icon:hover { color: white; background-color: rgba(255,255,255,0.1); }
+        
+        /* Text Button (Toolbar style) */
+        .btn-text {
+            background: transparent;
+            color: #aaa;
+            padding: 2px 8px;
+            border: 1px solid #444;
+            border-radius: 3px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-text:hover {
+            color: white;
+            background-color: rgba(255,255,255,0.1);
+            border-color: #666;
+        }
+
+        /* Docs Modal */
+        .docs-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        .docs-modal {
+            background: #252526;
+            width: 80%;
+            height: 90%;
+            border-radius: 8px;
+            border: 1px solid #454545;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        .docs-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        .doc-category {
+            margin-bottom: 30px;
+        }
+        .doc-category-title {
+            font-size: 1.2rem;
+            color: var(--syntax-keyword);
+            border-bottom: 1px solid #454545;
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        .doc-item {
+            background: #333;
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+        .doc-item-title {
+            color: var(--syntax-id);
+            font-weight: bold;
+            margin-bottom: 6px;
+            font-family: Consolas, monospace;
+        }
+        .doc-item-content {
+            color: #ccc;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+            line-height: 1.5;
+        }
+        code {
+            background: rgba(0,0,0,0.3);
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: Consolas, monospace;
+            color: #dcdcaa;
+        }
 
     </style>
 </head>
@@ -151,6 +231,98 @@
 
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- DSL Documentation Data ---
+        const DSL_DOCS = [
+            {
+                category: "基础语法",
+                items: [
+                    {
+                        title: "指令结构",
+                        content: "指令之间使用分号 `;` 分隔。\n例如：`属性变更 体力 -10; 属性变更 心情 5`"
+                    },
+                    {
+                        title: "目标指定",
+                        content: "默认操作对象为触发事件的角色。\n指定对象语法：`对象名.指令`\n例如：`训练员.属性变更 财富 -1` 或 `随机角色.获得标签 懒惰`\n指令若包含 `( )`，目标写在括号参数内，如 `关系变更(友情, 目标, ...)`"
+                    },
+                    {
+                        title: "条件后缀 (若)",
+                        content: "单条指令可以附加条件，仅当条件满足时执行。\n语法：`指令 若 条件`\n例如：`属性变更 心情 -5 若 属性.体力 < 10`"
+                    }
+                ]
+            },
+            {
+                category: "常用指令",
+                items: [
+                    {
+                        title: "属性变更",
+                        content: "语法：`属性变更 [属性名] [数值]`\n属性名：体力, 精力, 心情, 爱欲, 速度, 耐力, 力量, 毅力, 智慧, 魅力, 财富, 学识, 体质\n特殊属性：`随机` (随机一项赛马属性), `全属性` (所有赛马属性)\n数值支持：`随机(10, 20)`, `变量.X`\n例如：`属性变更 速度 10`, `属性变更 随机 随机(5, 10)`"
+                    },
+                    {
+                        title: "关系变更",
+                        content: "单向：`关系变更 [友情/爱情] [数值]` (默认对玩家)\n指定：`关系变更([类型], [目标], [源头], [数值])`\n双向：`双向关系变更([类型], [角色A]/[角色B], [数值])`\n群体双向：`双向关系变更([类型], 变量.[角色列表], [数值])`"
+                    },
+                    {
+                        title: "标签操作",
+                        content: "获得：`获得标签 [标签ID] [层数?]`\n移除：`移除标签 [标签ID]`"
+                    },
+                    {
+                        title: "流程控制",
+                        content: "跳转：`跳转 [事件ID]`\n概率跳转：`概率跳转 [概率0-100] [事件ID]`\n角色入队：`让角色入队([目标])`"
+                    },
+                    {
+                        title: "变量操作",
+                        content: "设置：`设置变量 [变量名] = [表达式]`\n计算：`变量计算 [变量名] [+/-] [数值]`\n表达式支持：\n- `获取随机队友()`\n- `获取随机全员角色()`\n- `获取角色(非队友)`\n- `列表随机取值(变量.列表)`\n- `随机(1, 100)`"
+                    },
+                    {
+                        title: "列表/集合操作",
+                        content: "筛选：`列表筛选([变量名], [条件])`\n排除：`列表排除([变量名], [目标角色])`\n截取：`列表截取([变量名], [数量])`\n执行：`列表执行([变量名], [指令])`\n添加：`列表添加([变量名], [目标])`"
+                    }
+                ]
+            },
+            {
+                category: "条件判别",
+                items: [
+                    {
+                        title: "逻辑运算",
+                        content: "支持 `&&` (与), `||` (或), `()` (括号优先级)。"
+                    },
+                    {
+                        title: "属性比较",
+                        content: "语法：`[对象.]属性.[属性名] [比较符] [数值]`\n例如：`属性.体力 > 50`, `训练员.属性.财富 < 0`"
+                    },
+                    {
+                        title: "标签检查",
+                        content: "存在：`[对象.]标签组 存在 \"标签ID\"`\n不存在：`[对象.]标签组 不存在 \"标签ID\"`"
+                    },
+                    {
+                        title: "关系检查",
+                        content: "语法：`[源.]关系.[目标].友情/爱情 [比较符] [数值]`\n例如：`关系.玩家.爱情 > 50`, `关系.东海帝王.友情 >= 20`"
+                    },
+                    {
+                        title: "环境/全局",
+                        content: "`当前月` (1-12)\n`当前旬` (\"上旬\"/\"下旬\")\n`当前年` (1-3)\n`已选序号` (仅用于分支判断，1开始)\n`变量.[变量名]`\n`变量存在 [变量名]`\n`随机(min, max) > val`"
+                    }
+                ]
+            },
+            {
+                category: "文本替换",
+                items: [
+                    {
+                        title: "变量插入",
+                        content: "`{当前角色.名称}`\n`{训练员.称呼}`\n`{变量.自定义变量名}`"
+                    },
+                    {
+                        title: "随机文本",
+                        content: "`{随机文字(\"文本A\", \"文本B\", ...)}`"
+                    },
+                    {
+                        title: "三元运算",
+                        content: "`{条件 ? 真显示文本 : 假显示文本}`\n例如：`{训练员.性别 == \"男\" ? \"他\" : \"她\"}`"
+                    }
+                ]
+            }
+        ];
 
         // --- Core Logic (Robust Parsing) ---
 
@@ -210,6 +382,57 @@
             return `${fileData.imports.trim()}\n\nexport const ${fileData.varName}: GameEvent[] = ${eventsTS};\n`;
         };
 
+        // --- Docs Modal Component ---
+        const DocsModal = ({ isOpen, onClose }) => {
+            const [search, setSearch] = useState('');
+            
+            if (!isOpen) return null;
+
+            const filteredDocs = DSL_DOCS.map(cat => ({
+                ...cat,
+                items: cat.items.filter(item => 
+                    item.title.toLowerCase().includes(search.toLowerCase()) || 
+                    item.content.toLowerCase().includes(search.toLowerCase())
+                )
+            })).filter(cat => cat.items.length > 0);
+
+            return (
+                <div className="docs-overlay" onClick={onClose}>
+                    <div className="docs-modal" onClick={e => e.stopPropagation()}>
+                        <div className="p-4 border-b border-[#454545] flex justify-between items-center bg-[#2d2d2d] rounded-t-lg">
+                            <h2 className="text-xl font-bold text-white">开发文档</h2>
+                            <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl">&times;</button>
+                        </div>
+                        <div className="p-4 border-b border-[#454545] bg-[#333]">
+                            <input 
+                                className="form-control" 
+                                placeholder="搜索指令、关键词..." 
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                                autoFocus
+                            />
+                        </div>
+                        <div className="docs-body no-scrollbar">
+                            {filteredDocs.map((cat, idx) => (
+                                <div key={idx} className="doc-category">
+                                    <div className="doc-category-title">{cat.category}</div>
+                                    {cat.items.map((item, i) => (
+                                        <div key={i} className="doc-item">
+                                            <div className="doc-item-title">{item.title}</div>
+                                            <div className="doc-item-content">{item.content}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
+                            {filteredDocs.length === 0 && (
+                                <div className="text-center text-gray-500 mt-10">未找到相关文档</div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         // --- App Component ---
 
         const App = () => {
@@ -217,6 +440,7 @@
             const [activeFileIndex, setActiveFileIndex] = useState(-1);
             const [activeEventIndex, setActiveEventIndex] = useState(-1);
             const [filter, setFilter] = useState('');
+            const [showDocs, setShowDocs] = useState(false);
             const fileInputRef = useRef(null);
 
             const activeFile = activeFileIndex >= 0 ? files[activeFileIndex] : null;
@@ -248,6 +472,19 @@
                     reader.readAsText(file);
                 });
                 e.target.value = null; 
+            };
+
+            const handleNewFile = () => {
+                const newFile = {
+                    name: `new_events_${files.length + 1}.ts`,
+                    imports: "import { GameEvent } from '../../types';",
+                    varName: 'NEW_EVENTS',
+                    events: []
+                };
+                setFiles(prev => [...prev, newFile]);
+                // Set active index to the new file (which will be at the end)
+                setTimeout(() => setActiveFileIndex(files.length), 0);
+                setActiveEventIndex(-1);
             };
 
             const handleSave = (index) => {
@@ -309,26 +546,41 @@
                 const lower = filter.toLowerCase();
                 return activeFile.events
                     .map((e, i) => ({...e, _idx: i}))
-                    .filter(e => e.id.toLowerCase().includes(lower) || (e.标题 && e.标题.includes(filter)) || (e.正文 && e.正文.includes(filter)));
+                    .filter(e => 
+                        e.id.toLowerCase().includes(lower) || 
+                        (e.标题 && e.标题.includes(filter)) || 
+                        (e.正文 && e.正文.includes(filter)) ||
+                        (e.选项组 && e.选项组.some(opt => opt.显示文本 && opt.显示文本.includes(filter)))
+                    );
             }, [activeFile, filter]);
 
             return (
                 <div className="flex h-screen w-full">
                     <input type="file" multiple accept=".ts" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+                    
+                    <DocsModal isOpen={showDocs} onClose={() => setShowDocs(false)} />
 
                     {/* --- Sidebar (Files) --- */}
                     <div className="sidebar w-64 flex flex-col flex-shrink-0">
                         <div className="p-3 border-b border-[#333] flex justify-between items-center">
                             <span className="text-xs font-bold uppercase tracking-wider text-gray-500">资源管理器</span>
-                            <button className="btn-icon" onClick={() => fileInputRef.current.click()} title="打开文件">
-                                <i className="fas fa-folder-plus"></i>
-                            </button>
+                            <div className="flex gap-2">
+                                <button className="btn-text" style={{color: '#4fc1ff', borderColor: 'rgba(79, 193, 255, 0.4)'}} onClick={() => setShowDocs(true)}>
+                                    文档
+                                </button>
+                                <button className="btn-text" style={{color: '#3fb950', borderColor: 'rgba(63, 185, 80, 0.4)'}} onClick={handleNewFile}>
+                                    新建
+                                </button>
+                                <button className="btn-text" style={{color: '#eebb00', borderColor: 'rgba(238, 187, 0, 0.4)'}} onClick={() => fileInputRef.current.click()}>
+                                    打开
+                                </button>
+                            </div>
                         </div>
                         <div className="flex-1 overflow-y-auto">
                             {files.map((f, idx) => (
                                 <div 
                                     key={idx}
-                                    onClick={() => { setActiveFileIndex(idx); setActiveEventIndex(-1); setFilter(''); }}
+                                    onClick={() => { setActiveFileIndex(idx); setActiveEventIndex(-1); /* Filter retained */ }}
                                     className={`list-item py-1.5 px-3 flex justify-between items-center group text-sm ${idx === activeFileIndex ? 'active' : ''}`}
                                 >
                                     <span className="truncate flex items-center gap-2">
@@ -352,27 +604,45 @@
                         <div className="p-3 border-b border-[#333] flex gap-2">
                             <input 
                                 className="form-control"
-                                placeholder="搜索事件..."
+                                placeholder="搜索事件/选项..."
                                 value={filter}
                                 onChange={e => setFilter(e.target.value)}
                             />
                             <button className="btn btn-success" onClick={addEvent}>+</button>
                         </div>
                         <div className="flex-1 overflow-y-auto">
-                            {activeFile ? filteredEvents.map((e) => (
+                            {activeFile ? filteredEvents.map((e, displayIndex) => (
                                 <div 
                                     key={e.id}
                                     onClick={() => setActiveEventIndex(e._idx)}
-                                    className={`event-item p-2.5 cursor-pointer ${activeEventIndex === e._idx ? 'active' : ''}`}
+                                    className={`event-item p-2.5 cursor-pointer relative ${activeEventIndex === e._idx ? 'active' : ''}`}
                                 >
-                                    <div className="font-bold text-sm mb-0.5 text-[#e0e0e0] truncate">{e.标题 || '(无标题)'}</div>
-                                    <div className="text-xs font-mono text-id truncate mb-1">{e.id}</div>
-                                    <div className="text-xs text-gray-500 truncate">{(e.正文 || '').substring(0, 30)}</div>
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex-1 min-w-0 mr-6">
+                                            {e.标题 && <div className="font-bold text-sm text-[#e0e0e0] truncate mb-0.5">{e.标题}</div>}
+                                            <div 
+                                                className={`text-xs text-gray-500 break-all`}
+                                                style={{
+                                                    display: '-webkit-box',
+                                                    WebkitLineClamp: e.标题 ? 2 : 3,
+                                                    WebkitBoxOrient: 'vertical',
+                                                    overflow: 'hidden',
+                                                    whiteSpace: 'normal'
+                                                }}
+                                            >
+                                                {(e.正文 || '')}
+                                            </div>
+                                        </div>
+                                        <span className="absolute top-2.5 right-2 text-[10px] text-gray-600 font-mono">#{displayIndex + 1}</span>
+                                    </div>
                                 </div>
                             )) : (
                                 <div className="p-4 text-center text-gray-500 text-sm">请先打开文件</div>
                             )}
                         </div>
+                        {activeFile && <div className="p-2 text-center text-xs text-gray-600 border-t border-[#333]">
+                            共 {filteredEvents.length} 个事件
+                        </div>}
                     </div>
 
                     {/* --- Editor --- */}
@@ -385,26 +655,31 @@
                                         <i className="fas fa-edit text-accent-color text-xl"></i>
                                         <h2 className="text-xl font-bold text-white tracking-tight">{activeEvent.id}</h2>
                                     </div>
-                                    <button 
-                                        className="btn btn-danger"
-                                        onClick={() => {
-                                            if(confirm('Delete?')) {
-                                                const newEvents = activeFile.events.filter((_, i) => i !== activeEventIndex);
-                                                const newFiles = [...files];
-                                                newFiles[activeFileIndex] = { ...activeFile, events: newEvents };
-                                                setFiles(newFiles);
-                                                setActiveEventIndex(-1);
-                                            }
-                                        }}
-                                    >
-                                        删除事件
-                                    </button>
+                                    <div className="flex gap-2">
+                                        <button className="btn btn-info" onClick={() => setShowDocs(true)}>
+                                            <i className="fas fa-question-circle"></i> 语法帮助
+                                        </button>
+                                        <button 
+                                            className="btn btn-danger"
+                                            onClick={() => {
+                                                if(confirm('确定删除吗？')) {
+                                                    const newEvents = activeFile.events.filter((_, i) => i !== activeEventIndex);
+                                                    const newFiles = [...files];
+                                                    newFiles[activeFileIndex] = { ...activeFile, events: newEvents };
+                                                    setFiles(newFiles);
+                                                    setActiveEventIndex(-1);
+                                                }
+                                            }}
+                                        >
+                                            删除事件
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {/* Form Grid */}
                                 <div className="grid grid-cols-2 gap-4 mb-4">
                                     <div>
-                                        <label>ID (Unique Identifier)</label>
+                                        <label>ID</label>
                                         <input 
                                             className="form-control text-id font-bold" 
                                             value={activeEvent.id} 
@@ -412,7 +687,7 @@
                                         />
                                     </div>
                                     <div>
-                                        <label>标题 (Title)</label>
+                                        <label>标题</label>
                                         <input 
                                             className="form-control font-bold" 
                                             value={activeEvent.标题 || ''} 
@@ -423,15 +698,15 @@
 
                                 <div className="grid grid-cols-4 gap-4 mb-4">
                                     <div>
-                                        <label>权重 (Weight)</label>
+                                        <label>权重</label>
                                         <input type="number" className="form-control" value={activeEvent.权重} onChange={e => updateEvent('权重', parseInt(e.target.value)||0)} />
                                     </div>
                                     <div>
-                                        <label>次数 (-1无限)</label>
+                                        <label>可触发次数 (-1无限)</label>
                                         <input type="number" className="form-control" value={activeEvent.可触发次数} onChange={e => updateEvent('可触发次数', parseInt(e.target.value)||0)} />
                                     </div>
                                     <div className="col-span-2">
-                                        <label>标签组 (Tags)</label>
+                                        <label>标签组</label>
                                         <input 
                                             className="form-control"
                                             value={(activeEvent.标签组 || []).join(', ')} 
@@ -441,8 +716,8 @@
                                 </div>
 
                                 <div className="mb-4">
-                                    <label>触发条件 (Trigger Condition)</label>
-                                    <textarea 
+                                    <label>触发条件</label>
+                                    <input 
                                         className="form-control text-logic" 
                                         value={activeEvent.触发条件 || ''} 
                                         onChange={e => updateEvent('触发条件', e.target.value)} 
@@ -450,7 +725,7 @@
                                 </div>
                                 
                                 <div className="mb-4">
-                                    <label>预操作指令 (Pre-Action)</label>
+                                    <label>预操作指令</label>
                                     <input 
                                         className="form-control font-mono" 
                                         value={activeEvent.预操作指令 || ''} 
@@ -459,7 +734,7 @@
                                 </div>
 
                                 <div className="mb-4">
-                                    <label>正文内容 (Body)</label>
+                                    <label>正文内容</label>
                                     <textarea 
                                         className="form-control" 
                                         style={{ height: '120px', fontSize: '15px' }}
@@ -469,7 +744,7 @@
                                 </div>
 
                                 <div className="mb-6">
-                                    <label>默认操作指令 (Default Action)</label>
+                                    <label>默认操作指令</label>
                                     <input 
                                         className="form-control font-mono" 
                                         value={activeEvent.操作指令 || ''} 
@@ -481,7 +756,7 @@
                                     {/* Options */}
                                     <div>
                                         <div className="flex justify-between items-center mb-2">
-                                            <label className="mb-0">选项组 (Options)</label>
+                                            <label className="mb-0">选项组</label>
                                             <button 
                                                 className="btn btn-success"
                                                 onClick={() => {
@@ -501,9 +776,9 @@
                                                             updateEvent('选项组', opts);
                                                         }}><i className="fas fa-times"></i></button>
                                                     </div>
-                                                    <div className="grid grid-cols-2 gap-2 mb-2">
-                                                        <input className="form-control" placeholder="显示文本" value={opt.显示文本} onChange={e => updateOption(idx, '显示文本', e.target.value)} />
-                                                        <input className="form-control font-mono text-xs" placeholder="跳转ID" value={opt.跳转 || ''} onChange={e => updateOption(idx, '跳转', e.target.value)} />
+                                                    <div className="mb-2">
+                                                        <input className="form-control mb-1" placeholder="显示文本" value={opt.显示文本} onChange={e => updateOption(idx, '显示文本', e.target.value)} />
+                                                        <input className="form-control text-logic text-xs" placeholder="可见条件" value={opt.可见条件 || ''} onChange={e => updateOption(idx, '可见条件', e.target.value)} />
                                                     </div>
                                                     <input className="form-control font-mono text-xs" placeholder="操作指令" value={opt.操作指令} onChange={e => updateOption(idx, '操作指令', e.target.value)} />
                                                 </div>
@@ -514,7 +789,7 @@
                                     {/* Branches */}
                                     <div>
                                         <div className="flex justify-between items-center mb-2">
-                                            <label className="mb-0">分支组 (Branches)</label>
+                                            <label className="mb-0">分支组</label>
                                             <button 
                                                 className="btn btn-success"
                                                 onClick={() => {
