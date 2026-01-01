@@ -1,6 +1,6 @@
 
 import { RuntimeCharacter } from '../../types';
-import { getTurnInfo } from './utils';
+import { getTurnInfo, evalValue } from './utils';
 import { resolveTargetCharacter } from './character';
 
 export const checkCondition = (condition: string, char: RuntimeCharacter, turn: number, choiceIndex?: number, allChars: RuntimeCharacter[] = [], variables?: Record<string, any>): boolean => {
@@ -161,13 +161,15 @@ export const checkCondition = (condition: string, char: RuntimeCharacter, turn: 
       return true;
     }
 
+    // Updated Random Check: supports 随机(min, max) and variables
     if (cond.startsWith('随机')) {
-      const match = cond.match(/随机\(\s*(\d+)~(\d+)\s*\)\s*([>=<]+|==)\s*(\d+)/);
+      const match = cond.match(/随机\(\s*([^,~\)]+)\s*[,~]\s*([^,~\)]+)\s*\)\s*([>=<]+|==)\s*(.+)/);
       if (match) {
-        const min = parseInt(match[1]);
-        const max = parseInt(match[2]);
+        const min = evalValue(match[1].trim(), variables);
+        const max = evalValue(match[2].trim(), variables);
         const op = match[3];
-        const val = parseInt(match[4]);
+        const val = evalValue(match[4].trim(), variables);
+        
         const rand = Math.floor(Math.random() * (max - min + 1)) + min;
         switch (op) {
           case '>': return rand > val;

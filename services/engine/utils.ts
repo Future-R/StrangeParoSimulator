@@ -24,22 +24,35 @@ export const getTurnDate = (turn: number): string => {
 export const evalValue = (valStr: string, variables?: Record<string, any>): number => {
     if (!valStr) return 0;
     
-    // 1. Try Variable Lookup
-    if (variables && variables[valStr] !== undefined) {
-        const val = parseInt(variables[valStr]);
+    const str = String(valStr).trim();
+
+    // 0. Explicit Variable Syntax: 变量.X
+    if (str.startsWith('变量.') && variables) {
+        const key = str.replace('变量.', '');
+        if (variables[key] !== undefined) {
+             const val = parseInt(variables[key]);
+             return isNaN(val) ? 0 : val;
+        }
+        return 0; 
+    }
+
+    // 1. Random Syntax: 随机(min, max) -> Supports nested evalValue for arguments
+    // Supports both ',' and '~' for backward compatibility
+    const randomMatch = str.match(/随机\(\s*([^,~\)]+)\s*[,~]\s*([^,~\)]+)\s*\)/);
+    if (randomMatch) {
+        const minVal = evalValue(randomMatch[1].trim(), variables);
+        const maxVal = evalValue(randomMatch[2].trim(), variables);
+        return Math.floor(Math.random() * (maxVal - minVal + 1)) + minVal;
+    }
+
+    // 2. Direct Variable Lookup (Legacy support/Direct key usage)
+    if (variables && variables[str] !== undefined) {
+        const val = parseInt(variables[str]);
         if (!isNaN(val)) return val;
     }
 
-    // 2. Try Random Syntax: 随机(min~max)
-    const randomMatch = valStr.toString().match(/随机\((-?\d+)~(\-?\d+)\)/);
-    if (randomMatch) {
-        const min = parseInt(randomMatch[1]);
-        const max = parseInt(randomMatch[2]);
-        return Math.floor(Math.random() * (max - min + 1)) + min;
-    }
-
     // 3. Parse Integer
-    return parseInt(valStr) || 0;
+    return parseInt(str) || 0;
 };
 
 export const applyRelationshipModifiers = (val: number, target: RuntimeCharacter | undefined, type: '友情' | '爱情'): number => {
