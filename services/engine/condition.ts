@@ -142,6 +142,29 @@ export const checkCondition = (condition: string, char: RuntimeCharacter, turn: 
         }
     }
 
+    // New: Check Tag Layers (Must be checked before '标签组 存在')
+    // Syntax: 标签组(TagID).层数 >= 5
+    if (propPath.includes('标签组(') || propPath.includes('标签组 (')) {
+        const match = propPath.match(/标签组\s*\(\s*([^)]+)\s*\)\.([\w\u4e00-\u9fa5]+)\s*([>=<]+|==)\s*(\d+)/);
+        if (match) {
+            const tagId = match[1].trim().replace(/['"]/g, ''); // Remove quotes if present
+            const prop = match[2].trim(); // expecting '层数'
+            const op = match[3];
+            const val = parseInt(match[4]);
+
+            const tag = subject.标签组.find(t => t.templateId === tagId);
+            const currentVal = (tag && prop === '层数') ? tag.层数 : 0;
+
+            switch (op) {
+                case '>': return currentVal > val;
+                case '>=': return currentVal >= val;
+                case '<': return currentVal < val;
+                case '<=': return currentVal <= val;
+                case '==': return currentVal === val;
+            }
+        }
+    }
+
     if (propPath.includes('标签组 存在')) {
       const match = propPath.match(/"([^"]+)"/);
       if (match) return subject.标签组.some(t => t.templateId === match[1]);
