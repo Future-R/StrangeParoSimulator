@@ -221,29 +221,21 @@ export const processEvent = (
             }
             
             // Compensation Injection:
-            // Instead of manually updating stats here, we modify the event logic on-the-fly
-            // so that `applyOptionEffect` captures the stat restoration in the diff log.
             const compensatedEvent = { ...event };
             if (compensatedEvent.选项组) {
-                // Clone the options array and the specific option to avoid mutating the global constant
                 compensatedEvent.选项组 = [...compensatedEvent.选项组];
                 const selectedOption = { ...compensatedEvent.选项组[randomIdx] };
-                
-                // Prepend the restoration command
                 selectedOption.操作指令 = `属性变更 体力 5; 属性变更 精力 5; ${selectedOption.操作指令 || ''}`;
                 compensatedEvent.选项组[randomIdx] = selectedOption;
             }
 
-            // Apply Choice with obfuscated text
-            // Note: We use `newState` (which has pre-actions applied) as the base.
-            // `applyOptionEffect` will snapshot this base, execute the (now compensated) option, and diff them.
             return applyOptionEffect(
                 newState, 
                 characterId, 
                 compensatedEvent, 
                 randomIdx, 
                 variables, 
-                "你不知道做出了什么选择" // Override choice text
+                "你不知道做出了什么选择" 
             );
         }
 
@@ -315,18 +307,21 @@ export const processEvent = (
     }
 
     // [Multiple Personality Logic - Non-Interactive]
-    // 20% chance to "forget" the text (but effects still happened)
     if (isMultiplePersonality && Math.random() < 0.2) {
         parsedText = `${newChar.名称}没有这段记忆。`;
     }
     
-    newState.logs.push({
-        turn: newState.currentTurn,
-        characterName: newChar.名称,
-        text: parsedText + diffHtml,
-        type: 'event',
-        isImportant: false
-    });
+    // CHANGED: Only push log if text is NOT empty.
+    // This allows for "invisible" logic nodes (like routing checks) that don't pollute the log.
+    if (parsedText && parsedText.trim() !== '') {
+        newState.logs.push({
+            turn: newState.currentTurn,
+            characterName: newChar.名称,
+            text: parsedText + diffHtml,
+            type: 'event',
+            isImportant: false
+        });
+    }
 
     // 4. Chain
     if (nextEventId) {
@@ -345,26 +340,27 @@ export const resolvePendingEvent = (gameState: GameState, optionIndex: number): 
     const currentItem = gameState.pendingEvents[0];
     const { characterId, event, variables } = currentItem;
     
-    // Remove current pending event AND copy logs to avoid mutation
     const baseState = {
         ...gameState,
         pendingEvents: gameState.pendingEvents.slice(1),
-        logs: [...gameState.logs] // Copy logs array to ensure purity
+        logs: [...gameState.logs] 
     };
 
     const char = baseState.characters.find(c => c.instanceId === characterId)!;
 
-    // Log the Event Text First (The prompt)
     const eventText = currentItem.parsedText || parseText(event.正文, char, baseState.currentTurn, baseState.characters, variables);
-    baseState.logs.push({
-        turn: baseState.currentTurn,
-        characterName: char.名称,
-        text: eventText,
-        type: 'event',
-        isImportant: !!event.标题
-    });
+    
+    // CHANGED: Check if text is valid before logging the interactive event start
+    if (eventText && eventText.trim() !== '') {
+        baseState.logs.push({
+            turn: baseState.currentTurn,
+            characterName: char.名称,
+            text: eventText,
+            type: 'event',
+            isImportant: !!event.标题
+        });
+    }
 
-    // Fallback if needed
     if (optionIndex === -1 && (!event.选项组 || event.选项组.length === 0)) {
          return processEvent(baseState, { ...event, 标题: undefined, 选项组: [] }, characterId, variables);
     }

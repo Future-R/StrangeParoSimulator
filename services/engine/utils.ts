@@ -17,6 +17,20 @@ export const getTurnInfo = (turn: number) => {
 };
 
 export const getTurnDate = (turn: number): string => {
+  // Check specifically for confinement tag on player (p1)
+  // We need to access this via window.GameDebug or similar since we don't have direct access to state here,
+  // BUT `getTurnDate` is usually called within React components where we pass props,
+  // or via `getTurnInfo` which is pure.
+  // To keep it clean, we will rely on the caller to handle visual obfuscation OR 
+  // we check the global window.GameDebug if available (hacky but works for this specific requested feature)
+  
+  if (typeof window !== 'undefined' && window.GameDebug) {
+      const p1 = window.GameDebug.characters.find(c => c.instanceId === 'p1');
+      if (p1 && p1.标签组.some(t => t.templateId === '监禁')) {
+          return "?年?月?日";
+      }
+  }
+
   if (turn > 72) return "结局"; 
   return getTurnInfo(turn).dateStr;
 };
@@ -61,7 +75,7 @@ export const applyRelationshipModifiers = (val: number, target: RuntimeCharacter
     const charm = target.通用属性.魅力 || 0;
     multiplier *= Math.max(0, charm) / 10;
     if (type === '爱情' && target.标签组.some(t => t.templateId === '婚戒')) {
-        multiplier *= 0.5;
+        multiplier *= 0.2; // CHANGED from 0.5 to 0.2
     }
     return Math.floor(val * multiplier);
 };

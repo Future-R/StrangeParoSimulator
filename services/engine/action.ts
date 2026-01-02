@@ -209,7 +209,13 @@ export const executeAction = (
                     } else if (expr.startsWith('随机')) {
                         variables[key] = evalValue(expr);
                     } else {
-                        variables[key] = expr; 
+                        // Try to resolve as a character reference first (e.g. 当前角色)
+                        const resolved = resolveTargetCharacter(expr, subject, allChars, variables);
+                        if (resolved) {
+                            variables[key] = resolved;
+                        } else {
+                            variables[key] = expr;
+                        }
                     }
                 }
                 break;

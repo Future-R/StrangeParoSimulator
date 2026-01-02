@@ -17,13 +17,6 @@ export const checkCondition = (condition: string, char: RuntimeCharacter, turn: 
       if (c === '|' && condition[i+1] === '|' && parenLevel === 0) {
           const left = condition.substring(0, i).trim();
           const right = condition.substring(i+2).trim();
-          // Short-circuit logic: if left is true, we don't strictly need to evaluate right, but recursion handles it.
-          // Note: Standard JS precedence is && before ||. 
-          // However, here we are splitting by || FIRST. 
-          // Example: A && B || C. 
-          // Split: "A && B" OR "C". 
-          // If check("A && B") is true, result is true. Else check("C").
-          // This correctly implements A && B || C (AND binds tighter).
           return checkCondition(left, char, turn, choiceIndex, allChars, variables) || 
                  checkCondition(right, char, turn, choiceIndex, allChars, variables);
       }
@@ -57,8 +50,6 @@ export const checkCondition = (condition: string, char: RuntimeCharacter, turn: 
 
     // Parentheses stripping for simple cases (Recursion)
     if (cond.startsWith('(') && cond.endsWith(')')) {
-        // Simple check to ensure it's a wrapping pair, not "(A) && (B)" (though split logic handles top level)
-        // Since we split by && already, "A && B" inside parens is one chunk.
         return checkCondition(cond.substring(1, cond.length - 1), char, turn, choiceIndex, allChars, variables);
     }
 
@@ -130,7 +121,9 @@ export const checkCondition = (condition: string, char: RuntimeCharacter, turn: 
         const innerMatch = cond.match(/存在角色满足\((.*)\)/);
         if (innerMatch) {
             const innerCond = innerMatch[1];
-            return allChars.some(c => checkCondition(innerCond, c, turn, choiceIndex, allChars, variables));
+            // Inject current char as __outer to allow referencing the condition checker subject in sub-conditions
+            const nextVariables = { ...(variables || {}), __outer: char };
+            return allChars.some(c => checkCondition(innerCond, c, turn, choiceIndex, allChars, nextVariables));
         }
     }
 
@@ -161,7 +154,6 @@ export const checkCondition = (condition: string, char: RuntimeCharacter, turn: 
       return true;
     }
 
-    // Updated Random Check: supports 随机(min, max) and variables
     if (cond.startsWith('随机')) {
       const match = cond.match(/随机\(\s*([^,~\)]+)\s*[,~]\s*([^,~\)]+)\s*\)\s*([>=<]+|==)\s*(.+)/);
       if (match) {
@@ -205,7 +197,8 @@ export const checkCondition = (condition: string, char: RuntimeCharacter, turn: 
     }
 
     if (propPath.includes('关系.')) {
-        const match = propPath.match(/关系\.([\w\u4e00-\u9fa5]+)\.([\w\u4e00-\u9fa5]+)\s*([>=<]+|==)\s*(\d+)/);
+        // Changed regex to capture complex target names including dots (like '变量.队长')
+        const match = propPath.match(/关系\.([^\.]+)\.([\w\u4e00-\u9fa5]+)\s*([>=<]+|==)\s*(\d+)/);
         if (match) {
             const targetName = match[1];
             const type = match[2] as '友情' | '爱情';

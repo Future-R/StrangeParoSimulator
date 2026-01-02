@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TS 事件数据编辑器 v1.0</title>
+    <title>TS 事件数据编辑器 v1.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -489,7 +490,12 @@
 
             const handleSave = (index) => {
                 const file = files[index];
-                const content = generateFileContent(file);
+                // Clean up tags in events to remove empty strings caused by trailing commas during editing
+                const cleanedEvents = file.events.map(ev => ({
+                    ...ev,
+                    标签组: (ev.标签组 || []).filter(Boolean)
+                }));
+                const content = generateFileContent({ ...file, events: cleanedEvents });
                 const blob = new Blob([content], { type: 'text/plain' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -548,6 +554,7 @@
                     .map((e, i) => ({...e, _idx: i}))
                     .filter(e => 
                         e.id.toLowerCase().includes(lower) || 
+                        (e.标签组 && e.标签组.some(t => t.toLowerCase().includes(lower))) ||
                         (e.标题 && e.标题.includes(filter)) || 
                         (e.正文 && e.正文.includes(filter)) ||
                         (e.选项组 && e.选项组.some(opt => opt.显示文本 && opt.显示文本.includes(filter)))
@@ -604,7 +611,7 @@
                         <div className="p-3 border-b border-[#333] flex gap-2">
                             <input 
                                 className="form-control"
-                                placeholder="搜索事件/选项..."
+                                placeholder="搜索事件/选项/标签..."
                                 value={filter}
                                 onChange={e => setFilter(e.target.value)}
                             />
@@ -706,11 +713,11 @@
                                         <input type="number" className="form-control" value={activeEvent.可触发次数} onChange={e => updateEvent('可触发次数', parseInt(e.target.value)||0)} />
                                     </div>
                                     <div className="col-span-2">
-                                        <label>标签组</label>
+                                        <label>标签组 (逗号分隔)</label>
                                         <input 
                                             className="form-control"
                                             value={(activeEvent.标签组 || []).join(', ')} 
-                                            onChange={e => updateEvent('标签组', e.target.value.split(/[,，]/).map(s=>s.trim()).filter(Boolean))} 
+                                            onChange={e => updateEvent('标签组', e.target.value.split(/[,，]/).map(s=>s.trim()))} 
                                         />
                                     </div>
                                 </div>

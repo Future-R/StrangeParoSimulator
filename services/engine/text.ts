@@ -48,6 +48,37 @@ const splitTernary = (content: string) => {
     return null;
 };
 
+// Helper to split function arguments by comma, respecting quotes
+const splitArgs = (str: string): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuote = false;
+    let quoteChar = '';
+
+    for (let i = 0; i < str.length; i++) {
+        const char = str[i];
+        if (inQuote) {
+            if (char === quoteChar && str[i-1] !== '\\') {
+                inQuote = false;
+            }
+            current += char;
+        } else {
+            if (char === '"' || char === "'") {
+                inQuote = true;
+                quoteChar = char;
+                current += char;
+            } else if (char === ',') {
+                result.push(current.trim());
+                current = '';
+            } else {
+                current += char;
+            }
+        }
+    }
+    if (current) result.push(current.trim());
+    return result;
+};
+
 // Helper to clean quotes from result strings
 const cleanResult = (s: string) => s.trim().replace(/^"|"$/g, '').replace(/^'|'$/g, '');
 
@@ -90,8 +121,12 @@ export const parseText = (text: string, char: RuntimeCharacter, turn: number, al
                 // 2. Try Random Text: 随机文字(...)
                 if (blockContent.startsWith('随机文字(') && blockContent.endsWith(')')) {
                     const args = blockContent.substring(5, blockContent.length - 1);
-                    const options = args.split(',').map(s => cleanResult(s.trim()));
-                    result += options[Math.floor(Math.random() * options.length)];
+                    const options = splitArgs(args).map(s => cleanResult(s));
+                    if (options.length > 0) {
+                        const rawResult = options[Math.floor(Math.random() * options.length)];
+                        // Recursively parse the selected text to resolve inner variables
+                        result += parseText(rawResult, char, turn, allChars, variables);
+                    }
                     i = j;
                     continue;
                 }

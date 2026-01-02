@@ -56,25 +56,32 @@ export const resolveTargetCharacter = (key: string, current: RuntimeCharacter, a
     if (byTemplate) return byTemplate;
 
     // Priority 2: Variable lookup
-    if (variables && variables[key]) {
-        const val = variables[key];
-
-        // Handle ID strings directly (e.g., 'c1', 'p1')
-        if (typeof val === 'string') {
-             if (val.startsWith('c') || val.startsWith('p') || val.startsWith('npc')) {
-                 const found = allChars.find(c => c.instanceId === val);
-                 if (found) return found;
-             }
-             // Fix: Also check for Name or TemplateId matches in variables
-             const foundByName = allChars.find(c => c.名称 === val || c.templateId === val);
-             if (foundByName) return foundByName;
+    if (variables) {
+        let val: any = undefined;
+        if (key.startsWith('变量.')) {
+            val = variables[key.replace('变量.', '')];
+        } else if (variables[key]) {
+            val = variables[key];
         }
 
-        // Handle Character Objects (e.g. from '设置变量 ... = 获取随机角色')
-        // CRITICAL: Must use instanceId from the variable to find the LIVE object in `allChars`.
-        // The object in `variables` might be from a stale state snapshot.
-        if (typeof val === 'object' && val.instanceId) {
-            return allChars.find(c => c.instanceId === val.instanceId);
+        if (val !== undefined) {
+            // Handle ID strings directly (e.g., 'c1', 'p1')
+            if (typeof val === 'string') {
+                 if (val.startsWith('c') || val.startsWith('p') || val.startsWith('npc')) {
+                     const found = allChars.find(c => c.instanceId === val);
+                     if (found) return found;
+                 }
+                 // Fix: Also check for Name or TemplateId matches in variables
+                 const foundByName = allChars.find(c => c.名称 === val || c.templateId === val);
+                 if (foundByName) return foundByName;
+            }
+
+            // Handle Character Objects (e.g. from '设置变量 ... = 获取随机角色')
+            // CRITICAL: Must use instanceId from the variable to find the LIVE object in `allChars`.
+            // The object in `variables` might be from a stale state snapshot.
+            if (typeof val === 'object' && val.instanceId) {
+                return allChars.find(c => c.instanceId === val.instanceId);
+            }
         }
     }
 
