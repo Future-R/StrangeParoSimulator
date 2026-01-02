@@ -418,7 +418,7 @@ function App() {
                 className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-mono select-none ${canOpenDevConsole ? 'cursor-pointer hover:text-green-500 active:scale-90 transition-transform' : ''}`}
                 onClick={() => canOpenDevConsole && setIsDevConsoleOpen(true)}
              >
-                v0.1.251231e
+                v0.1.260102b
              </div>
         </div>
 
@@ -436,7 +436,7 @@ function App() {
                     className={`text-xs text-gray-400 font-mono select-none ${canOpenDevConsole ? 'cursor-pointer hover:text-green-500 hover:underline transition-colors' : ''}`}
                     onClick={() => canOpenDevConsole && setIsDevConsoleOpen(true)}
                 >
-                    v0.1.251231e
+                    v0.1.260102b
                 </span>
             </div>
 
