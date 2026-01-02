@@ -178,20 +178,14 @@ const applyOptionEffect = (
     // Chain Next Event
     if (nextEventId) {
         if (isWait) {
-            // "Continue" Logic: Inject a Bridge Event to force manual interaction
-            const bridgeEvent: GameEvent = {
-                id: `bridge_to_${nextEventId}`,
-                权重: 0,
-                可触发次数: 1,
-                标签组: [],
-                触发条件: 'true',
-                标题: '...',
-                正文: '...', // Minimal text, acts as a pause
-                选项组: [
-                    { 显示文本: '继续', 操作指令: `跳转 ${nextEventId}` }
-                ]
+            // "Continue" Logic: Pause execution, set state to waiting for user to click "Continue"
+            // This replaces the previous Modal approach with a GameControls button approach
+            newState.chainedEvent = {
+                characterId,
+                eventId: nextEventId,
+                variables
             };
-            return processEvent(newState, bridgeEvent, characterId, variables);
+            return newState;
         } else {
             // "Jump" Logic: Seamless transition
             const nextEvent = EVENTS.find(e => e.id === nextEventId);
@@ -376,20 +370,12 @@ export const processEvent = (
     // 4. Chain
     if (nextEventId) {
         if (isWait) {
-             // Inject Bridge Event
-             const bridgeEvent: GameEvent = {
-                id: `bridge_to_${nextEventId}`,
-                权重: 0,
-                可触发次数: 1,
-                标签组: [],
-                触发条件: 'true',
-                标题: '...',
-                正文: '...', 
-                选项组: [
-                    { 显示文本: '继续', 操作指令: `跳转 ${nextEventId}` }
-                ]
-            };
-            return processEvent(newState, bridgeEvent, characterId, variables);
+             newState.chainedEvent = {
+                 characterId,
+                 eventId: nextEventId,
+                 variables
+             };
+             return newState;
         } else {
             const nextEvent = EVENTS.find(e => e.id === nextEventId);
             if (nextEvent) {

@@ -249,6 +249,20 @@ function App() {
         if (prev.gamePhase === 'gameover' || prev.pendingEvents.length > 0) return prev;
 
         let newState = { ...prev };
+
+        // 1. Check for Chained Events (Continue Logic)
+        if (newState.chainedEvent) {
+            const { characterId, eventId, variables } = newState.chainedEvent;
+            newState.chainedEvent = undefined; // Clear flag
+            
+            const event = EVENTS.find(e => e.id === eventId);
+            if (event) {
+                // Process chain without advancing turn
+                return processEvent(newState, event, characterId, variables);
+            }
+            // If event not found, fall through to normal queue processing
+        }
+
         let nextQueue = [...prev.currentTurnQueue];
 
         if (nextQueue.length === 0) {
@@ -370,7 +384,7 @@ function App() {
   const parsedModalText = currentPendingEvent?.parsedText;
   const parsedModalTitle = currentPendingEvent?.parsedTitle;
 
-  const hasPendingActions = gameState.currentTurnQueue.length > 0;
+  const hasPendingActions = gameState.currentTurnQueue.length > 0 || !!gameState.chainedEvent;
   
   // Sort characters for display: P1 first, then by recruitedAt
   const teamCharacters = gameState.characters
@@ -404,7 +418,7 @@ function App() {
                 className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-mono select-none ${canOpenDevConsole ? 'cursor-pointer hover:text-green-500 active:scale-90 transition-transform' : ''}`}
                 onClick={() => canOpenDevConsole && setIsDevConsoleOpen(true)}
              >
-                v0.1.260102b
+                v0.1.251231e
              </div>
         </div>
 
@@ -422,7 +436,7 @@ function App() {
                     className={`text-xs text-gray-400 font-mono select-none ${canOpenDevConsole ? 'cursor-pointer hover:text-green-500 hover:underline transition-colors' : ''}`}
                     onClick={() => canOpenDevConsole && setIsDevConsoleOpen(true)}
                 >
-                    v0.1.260102b
+                    v0.1.251231e
                 </span>
             </div>
 

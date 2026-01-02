@@ -153,6 +153,13 @@ export interface PendingEventItem {
   parsedTitle?: string; 
 }
 
+// 连锁事件（暂停等待继续）
+export interface ChainedEvent {
+    characterId: string;
+    eventId: string;
+    variables: Record<string, any>;
+}
+
 // 全局游戏状态
 export interface GameState {
   gamePhase: 'setup' | 'playing' | 'gameover';
@@ -162,6 +169,7 @@ export interface GameState {
   logs: LogEntry[];
   pendingEvents: PendingEventItem[]; 
   currentTurnQueue: string[]; 
+  chainedEvent?: ChainedEvent; // 新增：用于存储等待“继续”的事件
   isAuto: boolean;
   autoSpeed: number;
 }
