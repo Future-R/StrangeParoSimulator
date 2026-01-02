@@ -7,8 +7,9 @@ import { EventModal } from './components/EventModal';
 import { TagModal } from './components/TagModal';
 import { SetupScreen } from './components/SetupScreen';
 import { MobileCharacterList } from './components/MobileCharacterList';
+import { DevConsole } from './components/DevConsole';
 import { GameState, RuntimeCharacter, LogEntry, TagTemplate, RuntimeTag, Relationship } from './types';
-import { createRuntimeCharacter, triggerCharacterEvent, resolvePendingEvent, getTurnDate, parseText, checkCondition, getAvailableStartTags } from './services/engine';
+import { createRuntimeCharacter, triggerCharacterEvent, resolvePendingEvent, getTurnDate, parseText, checkCondition, getAvailableStartTags, executeAction, processEvent } from './services/engine';
 import { CHARACTERS, EVENTS, ENDING_EVENTS, TAGS } from './constants';
 
 const INITIAL_MAX_TURNS = 72;
@@ -38,6 +39,7 @@ const createInitialState = (): GameState => {
 function App() {
   const [gameState, setGameState] = useState<GameState>(createInitialState());
   const [activeTagData, setActiveTagData] = useState<{ tag: TagTemplate, targetNames?: string[] } | null>(null);
+  const [isDevConsoleOpen, setIsDevConsoleOpen] = useState(false);
 
   useEffect(() => {
     // Debuggers
@@ -84,6 +86,51 @@ function App() {
           });
       }
       setActiveTagData({ tag: template, targetNames });
+  };
+
+  const handleDevExecute = (command: string) => {
+      setGameState(prev => {
+          // Clone state roughly
+          const newState = JSON.parse(JSON.stringify(prev)) as GameState;
+          
+          // Default subject is Trainer (p1)
+          const subject = newState.characters.find(c => c.instanceId === 'p1') || newState.characters[0];
+          
+          if (!subject) return prev;
+
+          try {
+              // Execute Action using engine
+              const result = executeAction(command, subject, newState.currentTurn, newState.characters, {});
+              
+              newState.logs.push({
+                  turn: newState.currentTurn,
+                  characterName: '系统',
+                  text: `[DEV指令] ${command}`,
+                  type: 'system'
+              });
+
+              // If the command triggered a jump, process it
+              if (result.nextEventId) {
+                  const event = EVENTS.find(e => e.id === result.nextEventId);
+                  if (event) {
+                      // We need to use processEvent but handle the state return
+                      // Since processEvent is pure, we pass our modified newState
+                      const processedState = processEvent(newState, event, subject.instanceId, result.newVariables);
+                      return processedState;
+                  }
+              }
+          } catch (e) {
+              console.error(e);
+              newState.logs.push({
+                  turn: newState.currentTurn,
+                  characterName: 'ERROR',
+                  text: `指令执行失败: ${e}`,
+                  type: 'system'
+              });
+          }
+
+          return newState;
+      });
   };
 
   const handleSetupComplete = (name: string, gender: '男'|'女', selectedTags: string[], starterId?: string) => {
@@ -241,7 +288,7 @@ function App() {
             // Turn Passives
             newState.characters.forEach(c => {
                 if (c.标签组.some(t => t.templateId === '好色')) c.通用属性.爱欲 = Math.min(100, c.通用属性.爱欲 + 2);
-
+                
                 const admirationTag = c.标签组.find(t => t.templateId === '憧憬');
                 if (admirationTag && admirationTag.targets) {
                     admirationTag.targets.forEach(targetId => {
@@ -273,6 +320,9 @@ function App() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+        // Prevent game hotkeys when dev console is open
+        if (isDevConsoleOpen) return;
+
         if (gameState.gamePhase === 'setup') return;
 
         if (gameState.pendingEvents.length > 0) {
@@ -295,7 +345,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gameState, handleOptionSelect, handleNextTurn, restartGame]);
+  }, [gameState, handleOptionSelect, handleNextTurn, restartGame, isDevConsoleOpen]);
 
   useEffect(() => {
     let interval: number | undefined;
@@ -339,6 +389,10 @@ function App() {
         return a.instanceId.localeCompare(b.instanceId);
     });
 
+  // Check if Developer Mode is active (Trainer Name is "未来")
+  const trainer = gameState.characters.find(c => c.instanceId === 'p1');
+  const canOpenDevConsole = trainer?.名称 === '未来';
+
   return (
     <div className="flex flex-col md:flex-row h-screen w-full overflow-hidden bg-white">
         
@@ -346,7 +400,12 @@ function App() {
              <div className="px-4 py-1 rounded-full border border-green-400 bg-green-50">
                 <span className="font-bold text-green-700 text-base">{getTurnDate(gameState.currentTurn)}</span>
              </div>
-             <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-mono">v0.1.260102a</div>
+             <div 
+                className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-mono select-none ${canOpenDevConsole ? 'cursor-pointer hover:text-green-500 active:scale-90 transition-transform' : ''}`}
+                onClick={() => canOpenDevConsole && setIsDevConsoleOpen(true)}
+             >
+                v0.1.260102b
+             </div>
         </div>
 
         <div className="hidden md:flex md:w-96 flex-shrink-0 h-full z-10">
@@ -359,7 +418,12 @@ function App() {
         <div className="flex-1 flex flex-col h-full relative overflow-hidden">
             <div className="hidden md:flex p-4 border-b bg-white shadow-sm justify-between items-center z-20 flex-shrink-0">
                 <h1 className="text-xl font-bold text-gray-800">怪文书模拟器</h1>
-                <span className="text-xs text-gray-400 font-mono select-none">v0.1.260102a</span>
+                <span 
+                    className={`text-xs text-gray-400 font-mono select-none ${canOpenDevConsole ? 'cursor-pointer hover:text-green-500 hover:underline transition-colors' : ''}`}
+                    onClick={() => canOpenDevConsole && setIsDevConsoleOpen(true)}
+                >
+                    v0.1.260102b
+                </span>
             </div>
 
             <div className="flex-1 overflow-y-auto flex flex-col w-full">
@@ -403,6 +467,12 @@ function App() {
             isGameOver={gameState.gamePhase === 'gameover'}
             onRestart={restartGame}
             hasPendingActions={hasPendingActions}
+        />
+
+        <DevConsole 
+            isOpen={isDevConsoleOpen && canOpenDevConsole} 
+            onClose={() => setIsDevConsoleOpen(false)} 
+            onExecute={handleDevExecute} 
         />
     </div>
   );

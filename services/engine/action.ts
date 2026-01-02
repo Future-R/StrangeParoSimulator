@@ -12,11 +12,11 @@ export const executeAction = (
     variables: Record<string, any>, 
     isSilent: boolean = false,
     eventTags: string[] = []
-): { newVariables?: Record<string, any>, nextEventId?: string } => {
+): { newVariables?: Record<string, any>, nextEventId?: string, isWait?: boolean } => {
     if (!commandStr) return {};
     
     const commands = commandStr.split(';').map(s => s.trim()).filter(s => s);
-    const result: { newVariables?: Record<string, any>, nextEventId?: string } = { newVariables: {} };
+    const result: { newVariables?: Record<string, any>, nextEventId?: string, isWait?: boolean } = { newVariables: {} };
 
     commands.forEach(rawCmd => {
         // 1. Normalization for common natural language typos/aliases
@@ -174,6 +174,25 @@ export const executeAction = (
                 else { target.标签组.push({ templateId: tagId, 层数: layers, 添加日期: turn }); }
                 break;
             }
+            case '标签变更': {
+                const tagId = actionParts[1];
+                const changeVal = actionParts[2] ? parseInt(actionParts[2]) : 0;
+                
+                if (changeVal === 0) break;
+
+                const existingIndex = target.标签组.findIndex(t => t.templateId === tagId);
+                if (existingIndex !== -1) {
+                    target.标签组[existingIndex].层数 += changeVal;
+                    // If layers drop below 1, remove tag
+                    if (target.标签组[existingIndex].层数 < 1) {
+                        target.标签组.splice(existingIndex, 1);
+                    }
+                } else if (changeVal > 0) {
+                    // Only add if positive change
+                    target.标签组.push({ templateId: tagId, 层数: changeVal, 添加日期: turn });
+                }
+                break;
+            }
             case '移除标签': {
                 const tagId = actionParts[1];
                 target.标签组 = target.标签组.filter(t => t.templateId !== tagId);
@@ -232,12 +251,21 @@ export const executeAction = (
             }
             case '跳转': {
                 result.nextEventId = actionParts[1];
+                result.isWait = false;
+                break;
+            }
+            case '继续': {
+                result.nextEventId = actionParts[1];
+                result.isWait = true;
                 break;
             }
             case '概率跳转': {
                 const chance = parseInt(actionParts[1]);
                 const nextId = actionParts[2];
-                if (Math.random() * 100 < chance) result.nextEventId = nextId;
+                if (Math.random() * 100 < chance) {
+                    result.nextEventId = nextId;
+                    result.isWait = false;
+                }
                 break;
             }
             case '列表筛选': {

@@ -34,7 +34,19 @@ const calculateCharDiffs = (oldChar: RuntimeCharacter, newChar: RuntimeCharacter
     const oldTags = oldChar.标签组.map(t => t.templateId);
     const newTags = newChar.标签组.map(t => t.templateId);
     newTags.forEach(t => {
-        if (!oldTags.includes(t)) diffs.push(`获得[${t}]`);
+        if (!oldTags.includes(t)) {
+            const tag = newChar.标签组.find(nt => nt.templateId === t);
+            if(tag && tag.层数 > 1) diffs.push(`获得[${t}x${tag.层数}]`);
+            else diffs.push(`获得[${t}]`);
+        } else {
+            // Check layer change
+            const oldTag = oldChar.标签组.find(ot => ot.templateId === t);
+            const newTag = newChar.标签组.find(nt => nt.templateId === t);
+            if (oldTag && newTag && oldTag.层数 !== newTag.层数) {
+                const diff = newTag.层数 - oldTag.层数;
+                diffs.push(`[${t}]层数${diff > 0 ? '+' : ''}${diff}`);
+            }
+        }
     });
     oldTags.forEach(t => {
          if (!newTags.includes(t)) diffs.push(`移除[${t}]`);
@@ -108,20 +120,32 @@ const applyOptionEffect = (
     const snapshotChars = JSON.parse(JSON.stringify(state.characters)) as RuntimeCharacter[];
     
     let nextEventId: string | undefined = undefined;
+    let isWait: boolean = false;
     const option = event.选项组?.[optionIndex];
 
     if (option) {
         // Execute Option Action
         const res = executeAction(option.操作指令, char, newState.currentTurn, newState.characters, variables, true, event.标签组);
-        if (res.nextEventId) nextEventId = res.nextEventId;
+        if (res.nextEventId) {
+            nextEventId = res.nextEventId;
+            isWait = !!res.isWait;
+        }
 
         // Execute Branches
         if (event.分支组) {
             for (const branch of event.分支组) {
                  if (checkCondition(branch.判别式, char, newState.currentTurn, optionIndex + 1, newState.characters, variables)) {
                      const bRes = executeAction(branch.操作指令, char, newState.currentTurn, newState.characters, variables, true, event.标签组);
-                     if (bRes.nextEventId) nextEventId = bRes.nextEventId;
-                     if (branch.跳转事件ID) nextEventId = branch.跳转事件ID;
+                     if (bRes.nextEventId) {
+                         nextEventId = bRes.nextEventId;
+                         isWait = !!bRes.isWait;
+                     }
+                     if (branch.跳转事件ID) {
+                         nextEventId = branch.跳转事件ID;
+                         // Branch explicit ID assumes standard jump, keep isWait as false (unless previously set by command?)
+                         // We reset to false to ensure standard behavior for '跳转事件ID' property
+                         isWait = false; 
+                     }
                      break;
                  }
             }
@@ -153,9 +177,27 @@ const applyOptionEffect = (
 
     // Chain Next Event
     if (nextEventId) {
-        const nextEvent = EVENTS.find(e => e.id === nextEventId);
-        if (nextEvent) {
-            return processEvent(newState, nextEvent, characterId, variables);
+        if (isWait) {
+            // "Continue" Logic: Inject a Bridge Event to force manual interaction
+            const bridgeEvent: GameEvent = {
+                id: `bridge_to_${nextEventId}`,
+                权重: 0,
+                可触发次数: 1,
+                标签组: [],
+                触发条件: 'true',
+                标题: '...',
+                正文: '...', // Minimal text, acts as a pause
+                选项组: [
+                    { 显示文本: '继续', 操作指令: `跳转 ${nextEventId}` }
+                ]
+            };
+            return processEvent(newState, bridgeEvent, characterId, variables);
+        } else {
+            // "Jump" Logic: Seamless transition
+            const nextEvent = EVENTS.find(e => e.id === nextEventId);
+            if (nextEvent) {
+                return processEvent(newState, nextEvent, characterId, variables);
+            }
         }
     }
 
@@ -277,18 +319,28 @@ export const processEvent = (
 
     // 2. Action (Auto-resolve branches or direct action)
     let nextEventId: string | undefined = undefined;
+    let isWait: boolean = false;
 
     if (event.操作指令) {
         const res = executeAction(event.操作指令, newChar, newState.currentTurn, newState.characters, variables, true, event.标签组);
-        if (res.nextEventId) nextEventId = res.nextEventId;
+        if (res.nextEventId) {
+            nextEventId = res.nextEventId;
+            isWait = !!res.isWait;
+        }
     }
 
     if (event.分支组) {
         for (const branch of event.分支组) {
             if (checkCondition(branch.判别式, newChar, newState.currentTurn, undefined, newState.characters, variables)) {
                 const bRes = executeAction(branch.操作指令, newChar, newState.currentTurn, newState.characters, variables, true, event.标签组);
-                if (bRes.nextEventId) nextEventId = bRes.nextEventId;
-                if (branch.跳转事件ID) nextEventId = branch.跳转事件ID;
+                if (bRes.nextEventId) {
+                    nextEventId = bRes.nextEventId;
+                    isWait = !!bRes.isWait;
+                }
+                if (branch.跳转事件ID) {
+                    nextEventId = branch.跳转事件ID;
+                    isWait = false; 
+                }
                 break;
             }
         }
@@ -311,8 +363,6 @@ export const processEvent = (
         parsedText = `${newChar.名称}没有这段记忆。`;
     }
     
-    // CHANGED: Only push log if text is NOT empty.
-    // This allows for "invisible" logic nodes (like routing checks) that don't pollute the log.
     if (parsedText && parsedText.trim() !== '') {
         newState.logs.push({
             turn: newState.currentTurn,
@@ -325,9 +375,26 @@ export const processEvent = (
 
     // 4. Chain
     if (nextEventId) {
-        const nextEvent = EVENTS.find(e => e.id === nextEventId);
-        if (nextEvent) {
-            return processEvent(newState, nextEvent, characterId, variables);
+        if (isWait) {
+             // Inject Bridge Event
+             const bridgeEvent: GameEvent = {
+                id: `bridge_to_${nextEventId}`,
+                权重: 0,
+                可触发次数: 1,
+                标签组: [],
+                触发条件: 'true',
+                标题: '...',
+                正文: '...', 
+                选项组: [
+                    { 显示文本: '继续', 操作指令: `跳转 ${nextEventId}` }
+                ]
+            };
+            return processEvent(newState, bridgeEvent, characterId, variables);
+        } else {
+            const nextEvent = EVENTS.find(e => e.id === nextEventId);
+            if (nextEvent) {
+                return processEvent(newState, nextEvent, characterId, variables);
+            }
         }
     }
 
@@ -350,7 +417,6 @@ export const resolvePendingEvent = (gameState: GameState, optionIndex: number): 
 
     const eventText = currentItem.parsedText || parseText(event.正文, char, baseState.currentTurn, baseState.characters, variables);
     
-    // CHANGED: Check if text is valid before logging the interactive event start
     if (eventText && eventText.trim() !== '') {
         baseState.logs.push({
             turn: baseState.currentTurn,

@@ -244,7 +244,7 @@
                     },
                     {
                         title: "目标指定",
-                        content: "默认操作对象为触发事件的角色。\n指定对象语法：`对象名.指令`\n例如：`训练员.属性变更 财富 -1` 或 `随机角色.获得标签 懒惰`\n指令若包含 `( )`，目标写在括号参数内，如 `关系变更(友情, 目标, ...)`"
+                        content: "默认操作对象为触发事件的角色。\n指定对象语法：`对象名.指令`\n例如：`训练员.属性变更 财富 -1` 或 `随机角色.获得标签 懒洋洋`\n指令若包含 `( )`，目标写在括号参数内，如 `关系变更(友情, 目标, ...)`"
                     },
                     {
                         title: "条件后缀 (若)",
@@ -362,7 +362,8 @@
                 const items = obj.map(item => toTSString(item, indentLevel + 1)).join(',\n' + childIndent);
                 return `[\n${childIndent}${items}\n${indent}]`;
             } else if (typeof obj === 'object' && obj !== null) {
-                const entries = Object.entries(obj).filter(([k,v]) => v !== undefined && v !== null && v !== '');
+                // CHANGED: Allow empty strings! Do not filter out v === ''
+                const entries = Object.entries(obj).filter(([k,v]) => v !== undefined && v !== null);
                 if (entries.length === 0) return '{}';
                 
                 const lines = entries.map(([key, value]) => {
