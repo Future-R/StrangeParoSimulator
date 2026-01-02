@@ -15,6 +15,7 @@ export const executeAction = (
 ): { newVariables?: Record<string, any>, nextEventId?: string, isWait?: boolean } => {
     if (!commandStr) return {};
     
+    // Removed global comma normalization per user request to preserve Chinese commas in text
     const commands = commandStr.split(';').map(s => s.trim()).filter(s => s);
     const result: { newVariables?: Record<string, any>, nextEventId?: string, isWait?: boolean } = { newVariables: {} };
 
@@ -85,20 +86,25 @@ export const executeAction = (
                 const funcMatch = fullCmd.match(/关系变更\(([^,]+),\s*([^,]+),\s*([^,]+),\s*(.+)\)/);
                 if (funcMatch) {
                     const type = funcMatch[1].trim() as '友情' | '爱情';
-                    const targetKey = funcMatch[2].trim(); 
-                    const sourceKey = funcMatch[3].trim(); 
-                    const val = evalValue(funcMatch[4].trim(), variables); // Updated
-                    const targetChar = resolveTargetCharacter(targetKey, subject, allChars, variables);
-                    const sourceChar = resolveTargetCharacter(sourceKey, subject, allChars, variables);
-                    if (targetChar && sourceChar) {
-                        const finalVal = applyRelationshipModifiers(val, targetChar, type);
-                        if (!sourceChar.关系列表[targetChar.instanceId]) sourceChar.关系列表[targetChar.instanceId] = { 友情: 0, 爱情: 0 };
-                        const rel = sourceChar.关系列表[targetChar.instanceId];
+                    const subjectKey = funcMatch[2].trim(); // Arg 1: Subject (Who feels)
+                    const objectKey = funcMatch[3].trim();  // Arg 2: Object (Whom they feel about)
+                    const val = evalValue(funcMatch[4].trim(), variables); 
+                    
+                    const subjectChar = resolveTargetCharacter(subjectKey, subject, allChars, variables);
+                    const objectChar = resolveTargetCharacter(objectKey, subject, allChars, variables);
+                    
+                    // Logic: Subject's feeling towards Object changes
+                    if (subjectChar && objectChar) {
+                        const finalVal = applyRelationshipModifiers(val, objectChar, type);
+                        if (!subjectChar.关系列表[objectChar.instanceId]) subjectChar.关系列表[objectChar.instanceId] = { 友情: 0, 爱情: 0 };
+                        const rel = subjectChar.关系列表[objectChar.instanceId];
                         rel[type] = Math.min(100, Math.max(0, rel[type] + finalVal));
                     }
                 } else {
+                    // Default shorthand: 关系变更 友情 10
+                    // Implies: Current Target (subject of the action context) -> Player (p1)
                     const type = actionParts[1] as '友情' | '爱情';
-                    const val = evalValue(actionParts[2], variables); // Updated
+                    const val = evalValue(actionParts[2], variables);
                     const p1 = allChars.find(c => c.instanceId === 'p1');
                     if (p1) {
                          const finalVal = applyRelationshipModifiers(val, p1, type);
