@@ -241,13 +241,6 @@ function App() {
             // Turn Passives
             newState.characters.forEach(c => {
                 if (c.标签组.some(t => t.templateId === '好色')) c.通用属性.爱欲 = Math.min(100, c.通用属性.爱欲 + 2);
-                
-                // Glass Legs Passive
-                if (c.标签组.some(t => t.templateId === '玻璃脚')) {
-                    if (Math.random() < 0.3) {
-                        c.通用属性.体质 = Math.max(-5, c.通用属性.体质 - 1);
-                    }
-                }
 
                 const admirationTag = c.标签组.find(t => t.templateId === '憧憬');
                 if (admirationTag && admirationTag.targets) {
