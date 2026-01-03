@@ -41,41 +41,33 @@ export const RaceAttrBlock = ({ label, value, color }: { label: string, value: n
     </div>
 );
 
-// 标签组件 (可点击)
+// 标签组件 (可点击) - Updated with Material Styles
 export const TagChip: React.FC<{ tag: RuntimeTag; onClick?: (t: RuntimeTag) => void }> = ({ tag, onClick }) => {
     const template = TAGS[tag.templateId];
     if (!template) return null;
     
-    // 默认 R1: 灰铁
-    let bg = "bg-zinc-200";
-    let text = "text-zinc-700";
-    let border = "border-zinc-300";
+    // Default N (Iron/Stone)
+    let className = "bg-zinc-200 border-zinc-300 text-zinc-700";
 
-    if (template.稀有度 === 2) { // R2: 白银
-        bg = "bg-slate-50";
-        text = "text-slate-600";
-        border = "border-slate-300";
+    if (template.稀有度 === 2) { // R (Silver Metal)
+        className = "bg-gradient-to-b from-slate-200 to-slate-300 border-slate-400 text-slate-800 shadow-sm";
     }
-    if (template.稀有度 === 3) { // R3: 黄金
-        bg = "bg-yellow-50";
-        text = "text-yellow-700";
-        border = "border-yellow-400";
+    else if (template.稀有度 === 3) { // SR (Gold Metal)
+        className = "bg-gradient-to-b from-yellow-200 via-yellow-300 to-yellow-400 border-yellow-500 text-yellow-900 shadow-sm";
     }
-    if (template.稀有度 >= 4) { // R4: 彩钻
-        bg = "bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50";
-        text = "text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600";
-        border = "border-purple-300";
+    else if (template.稀有度 >= 4) { // SSR (Rainbow Diamond)
+        className = "bg-gradient-to-r from-indigo-200 via-purple-200 to-pink-200 border-purple-400 text-purple-900 shadow-sm animate-pulse-slow";
     }
 
     return (
         <button 
             onClick={(e) => { e.stopPropagation(); onClick?.(tag); }}
-            className={`${bg} ${text} ${border} text-xs font-bold me-1.5 px-2 py-1 rounded border inline-flex items-center mb-1 shadow-sm hover:opacity-80 active:scale-95 transition-all`} 
+            className={`${className} text-xs font-bold me-1.5 px-2 py-1 rounded border inline-flex items-center mb-1 hover:opacity-80 active:scale-95 transition-all`} 
             title={template.描述}
         >
             {template.显示名}
             {template.显示层数 && tag.层数 > 0 && (
-                <span className="ml-1 px-1 bg-black/20 rounded text-[10px] min-w-[14px] text-center">{tag.层数}</span>
+                <span className="ml-1 px-1 bg-black/10 rounded text-[10px] min-w-[14px] text-center border border-black/5">{tag.层数}</span>
             )}
         </button>
     );

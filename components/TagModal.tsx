@@ -12,46 +12,37 @@ interface TagModalProps {
 export const TagModal: React.FC<TagModalProps> = ({ isOpen, tag, targetNames, onClose }) => {
   if (!isOpen || !tag) return null;
 
-  // Default R1: 灰铁
+  // Default N (Iron/Stone)
   let rarityText = "N";
-  let rarityBg = "bg-zinc-100";
-  let rarityTextCol = "text-zinc-600";
-  let rarityBorder = "border-zinc-300";
-  let titleColor = "text-zinc-800";
+  let rarityBadgeClass = "bg-gray-200 text-gray-600 border-gray-300";
+  let titleColor = "text-gray-800";
+  let headerBg = "bg-gray-50/50";
   
-  if (tag.稀有度 === 2) { // R2: 白银
+  if (tag.稀有度 === 2) { // R (Silver)
       rarityText = "R"; 
-      rarityBg = "bg-slate-50";
-      rarityTextCol = "text-slate-600";
-      rarityBorder = "border-slate-300";
-      titleColor = "text-slate-700";
+      rarityBadgeClass = "bg-gradient-to-b from-slate-100 to-slate-200 text-slate-700 border-slate-300";
+      titleColor = "text-slate-800";
+      headerBg = "bg-gradient-to-r from-slate-50 to-slate-100";
   }
-  if (tag.稀有度 === 3) { // R3: 黄金
+  else if (tag.稀有度 === 3) { // SR (Gold)
       rarityText = "SR"; 
-      rarityBg = "bg-yellow-50";
-      rarityTextCol = "text-yellow-700";
-      rarityBorder = "border-yellow-200";
-      titleColor = "text-yellow-700";
+      rarityBadgeClass = "bg-gradient-to-b from-amber-100 to-amber-200 text-amber-800 border-amber-300";
+      titleColor = "text-amber-900";
+      headerBg = "bg-gradient-to-r from-amber-50 to-yellow-50";
   }
-  if (tag.稀有度 >= 4) { // R4: 彩钻
+  else if (tag.稀有度 >= 4) { // SSR (Rainbow/Diamond)
       rarityText = "SSR";
-      rarityBg = "bg-purple-50";
-      rarityTextCol = "text-purple-600";
-      rarityBorder = "border-purple-200";
-      titleColor = "text-purple-600";
+      rarityBadgeClass = "bg-gradient-to-br from-fuchsia-100 to-purple-100 text-purple-700 border-purple-300";
+      titleColor = "text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600";
+      headerBg = "bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50";
   }
-
-  // Special handling for title gradient if R4
-  const titleClass = tag.稀有度 >= 4 
-    ? "font-bold text-lg text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600"
-    : `font-bold text-lg ${titleColor}`;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-jelly border-2 border-white" onClick={e => e.stopPropagation()}>
-         <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-            <h3 className={titleClass}>{tag.显示名}</h3>
-            <span className={`text-xs font-black px-2 py-0.5 rounded border ${rarityBg} ${rarityTextCol} ${rarityBorder}`}>{rarityText}</span>
+         <div className={`p-4 border-b border-gray-100 flex justify-between items-center ${headerBg}`}>
+            <h3 className={`font-bold text-lg ${titleColor}`}>{tag.显示名}</h3>
+            <span className={`text-xs font-black px-2 py-0.5 rounded border shadow-sm ${rarityBadgeClass}`}>{rarityText}</span>
          </div>
          <div className="p-6 bg-white">
             <p className="text-gray-600 leading-relaxed text-base font-medium whitespace-pre-line">{tag.描述}</p>

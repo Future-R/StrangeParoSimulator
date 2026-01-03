@@ -149,22 +149,58 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
     onComplete(name, finalGender, selectedTags, selectedStarterId || undefined);
   };
 
-  const getTagColors = (tag: TagTemplate, isSelected: boolean) => {
-      if (isSelected) return { title: 'text-orange-600', border: 'border-orange-400', bg: 'bg-yellow-50' };
-      
-      switch (tag.稀有度) {
-          case 2: return { title: 'text-slate-700', border: 'border-gray-200', bg: 'bg-slate-50' }; // Silver
-          case 3: return { title: 'text-yellow-700', border: 'border-yellow-200', bg: 'bg-yellow-50' }; // Gold
-          case 4: return { title: 'text-purple-600', border: 'border-purple-200', bg: 'bg-purple-50' }; // Diamond
-          default: return { title: 'text-zinc-700', border: 'border-gray-200', bg: 'bg-white' }; // Iron
+  // Improved Visual Styles for Tags
+  const getTagStyleInfo = (tag: TagTemplate, isSelected: boolean, isBlocked: boolean) => {
+      if (isBlocked) {
+          return {
+              container: "bg-gray-100 border-gray-200 opacity-60 grayscale cursor-not-allowed",
+              title: "text-gray-400",
+              desc: "text-gray-400",
+              badge: null
+          };
       }
-  };
 
-  const getRarityBadge = (rarity: number) => {
-      if (rarity === 2) return <span className="text-xs bg-slate-100 text-slate-600 px-1.5 rounded border border-slate-200">R</span>;
-      if (rarity === 3) return <span className="text-xs bg-yellow-100 text-yellow-700 px-1.5 rounded border border-yellow-200">SR</span>;
-      if (rarity >= 4) return <span className="text-xs bg-purple-100 text-purple-600 px-1.5 rounded border border-purple-200 font-bold">SSR</span>;
-      return <span className="text-xs bg-gray-100 text-gray-500 px-1.5 rounded border border-gray-200">N</span>;
+      // Base Styles based on Rarity (Material Look)
+      let container = "bg-white border-gray-200 hover:border-gray-300";
+      let title = "text-gray-700";
+      let desc = "text-gray-500";
+      let badge = <span className="text-xs bg-gray-100 text-gray-500 px-1.5 rounded border border-gray-200 font-mono">N</span>;
+
+      if (tag.稀有度 === 2) { // R: Silver Metal
+          container = "bg-gradient-to-br from-[#F1F5F9] via-[#E2E8F0] to-[#CBD5E1] border-[#94A3B8] shadow-sm hover:brightness-105";
+          title = "text-[#334155] drop-shadow-sm";
+          desc = "text-[#475569]";
+          badge = <span className="text-xs bg-gradient-to-b from-slate-100 to-slate-200 text-slate-700 px-1.5 rounded border border-slate-300 font-bold font-serif shadow-sm">R</span>;
+      } else if (tag.稀有度 === 3) { // SR: Gold Metal
+          container = "bg-gradient-to-br from-[#FFFBEB] via-[#FEF3C7] to-[#FDE68A] border-[#D97706] shadow-sm hover:brightness-105";
+          title = "text-[#92400E] drop-shadow-sm";
+          desc = "text-[#B45309]";
+          badge = <span className="text-xs bg-gradient-to-b from-amber-100 to-amber-200 text-amber-800 px-1.5 rounded border border-amber-300 font-bold font-serif shadow-sm">SR</span>;
+      } else if (tag.稀有度 >= 4) { // SSR: Rainbow Diamond
+          // REMOVED 'overflow-hidden' from here to prevent clipping of SelectionFrame
+          container = "bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border-purple-300 relative group hover:shadow-purple-200/50 hover:shadow-lg transition-all";
+          title = "text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 drop-shadow-sm";
+          desc = "text-purple-700";
+          badge = <span className="text-xs bg-gradient-to-br from-fuchsia-100 to-purple-100 text-purple-700 px-1.5 rounded border border-purple-300 font-bold font-serif shadow-sm">SSR</span>;
+      }
+
+      // Selection Override (Highlight/Glow)
+      if (isSelected) {
+          // Add Green Selection Frame Effect on top of material
+          if (tag.稀有度 >= 4) {
+               container += " ring-2 ring-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.4)] transform scale-[1.02]";
+          } else if (tag.稀有度 === 3) {
+               container += " ring-2 ring-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.4)] transform scale-[1.02]";
+          } else if (tag.稀有度 === 2) {
+               container += " ring-2 ring-slate-400 shadow-md transform scale-[1.02]";
+          } else {
+               container = "bg-green-50 border-green-400 ring-1 ring-green-200 shadow-md transform scale-[1.02]";
+               title = "text-green-800";
+               desc = "text-green-600";
+          }
+      }
+
+      return { container, title, desc, badge };
   };
 
   // Filter playable characters for Step 3
@@ -280,7 +316,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
                 {availableTags.map(tag => {
                     const isSelected = selectedTags.includes(tag.id);
                     const isBlocked = blockedTags.includes(tag.id) && !isSelected;
-                    const colors = getTagColors(tag, isSelected);
+                    const styles = getTagStyleInfo(tag, isSelected, isBlocked);
 
                     return (
                         <button
@@ -289,24 +325,27 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
                         disabled={isBlocked}
                         className={`
                             relative p-3 rounded-xl border-2 text-left transition-all duration-200 flex items-start h-full
-                            ${isSelected 
-                                ? 'shadow-md transform scale-[1.01]' 
-                                : isBlocked
-                                    ? 'opacity-60 cursor-not-allowed grayscale'
-                                    : 'hover:border-green-400 hover:shadow-sm'
-                            }
-                            ${colors.bg} ${colors.border}
+                            ${styles.container}
                         `}
                         >
+                        {/* SSR Shimmer Animation Layer - Wrapped in clipped container */}
+                        {!isBlocked && tag.稀有度 >= 4 && (
+                            <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none z-0">
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -skew-x-12 translate-x-[-150%] animate-shimmer"></div>
+                            </div>
+                        )}
+
+                        {/* Selection Frame - Outside of clipped container, direct child of button */}
                         {isSelected && <SelectionFrame />}
-                        <div className="w-full">
+                        
+                        <div className="w-full relative z-10">
                             <div className="flex justify-between items-center mb-1">
-                                <span className={`font-bold text-sm md:text-base ${colors.title}`}>
+                                <span className={`font-bold text-sm md:text-base ${styles.title}`}>
                                     {tag.显示名}
                                 </span>
-                                {getRarityBadge(tag.稀有度)}
+                                {styles.badge}
                             </div>
-                            <div className="text-[10px] md:text-xs text-gray-500 leading-snug">
+                            <div className={`text-[10px] md:text-xs leading-snug font-medium ${styles.desc}`}>
                                 {tag.描述}
                             </div>
                         </div>

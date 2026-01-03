@@ -5,8 +5,8 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  // 修改为相对路径 './'，这样无论你的仓库名叫什么，都能正确找到资源文件
-  base: './', 
+  // Cloudflare Pages 部署建议使用绝对路径 '/'
+  base: '/', 
   build: {
     outDir: 'dist',
     assetsDir: 'assets',

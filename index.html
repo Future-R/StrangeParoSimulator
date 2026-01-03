@@ -53,6 +53,21 @@
             will-change: transform, opacity;
             animation: fade-in 0.2s ease-out forwards;
         }
+
+        /* Shimmer Animation for SSR */
+        @keyframes shimmer {
+            0% { transform: translateX(-150%) skewX(-15deg); }
+            50% { transform: translateX(150%) skewX(-15deg); }
+            100% { transform: translateX(150%) skewX(-15deg); }
+        }
+        .animate-shimmer {
+            animation: shimmer 2.5s infinite linear;
+        }
+        
+        /* Slow pulse for sidebar SSR tags */
+        .animate-pulse-slow {
+            animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
     </style>
 <script type="importmap">
 {
