@@ -9,8 +9,8 @@ import { SetupScreen } from './components/SetupScreen';
 import { MobileCharacterList } from './components/MobileCharacterList';
 import { MobileGameScene } from './components/MobileGameScene';
 import { DevConsole } from './components/DevConsole';
-import { GameState, RuntimeCharacter, LogEntry, TagTemplate, RuntimeTag, Relationship } from './types';
-import { createRuntimeCharacter, triggerCharacterEvent, resolvePendingEvent, getTurnDate, parseText, checkCondition, getAvailableStartTags, executeAction, processEvent } from './services/engine';
+import { GameState, RuntimeCharacter, TagTemplate, RuntimeTag } from './types';
+import { createRuntimeCharacter, triggerCharacterEvent, resolvePendingEvent, getTurnDate, checkCondition, getAvailableStartTags, executeAction, processEvent } from './services/engine';
 import { CHARACTERS, EVENTS, ENDING_EVENTS, TAGS } from './constants';
 
 const INITIAL_MAX_TURNS = 72;
