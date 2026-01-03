@@ -121,7 +121,7 @@ export const DevConsole: React.FC<DevConsoleProps> = ({ isOpen, onClose, onExecu
               >
                   {showDocs ? '隐藏帮助' : '指令帮助'}
               </button>
-              <button onClick={onClose} className="text-[#66D814] hover:text-white transition-colors text-xl leading-none">×</button>
+              {/* Exit button removed from header */}
           </div>
         </div>
 
@@ -154,6 +154,12 @@ export const DevConsole: React.FC<DevConsoleProps> = ({ isOpen, onClose, onExecu
                 <div className="flex justify-between items-center mt-3">
                     <span className="text-xs text-gray-500">支持多条指令 (;)</span>
                     <div className="flex gap-2">
+                        <button 
+                            onClick={onClose}
+                            className="px-4 py-1.5 border border-red-900 text-red-500 hover:bg-red-900/20 hover:text-red-400 rounded text-sm transition-colors"
+                        >
+                            关闭 EXIT
+                        </button>
                         <button 
                             onClick={() => setInput('')}
                             className="px-4 py-1.5 border border-gray-600 text-gray-400 hover:text-white hover:border-gray-400 rounded text-sm transition-colors"

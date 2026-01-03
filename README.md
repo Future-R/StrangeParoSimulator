@@ -1,11 +1,11 @@
-## Run Locally
+## 本地运行
 
-**Prerequisites:**  Node.js
+**需求环境:**  Node.js
 
 
-1. Install dependencies:
+1. 安装依赖:
    `npm install`
-2. Run the app:
+2. 运行游戏:
    `npm run dev`
 
 ## 部署到线上

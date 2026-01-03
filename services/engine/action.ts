@@ -354,6 +354,34 @@ export const executeAction = (
                  }
                  break;
             }
+            case '交合': {
+                const fullCmd = actionParts.join(' ');
+                const match = fullCmd.match(/交合\(([^,]+),\s*(.+)\)/);
+                if (match) {
+                    const charAKey = match[1].trim();
+                    const charBKey = match[2].trim();
+                    const charA = resolveTargetCharacter(charAKey, subject, allChars, variables);
+                    const charB = resolveTargetCharacter(charBKey, subject, allChars, variables);
+
+                    if (charA && charB) {
+                         // Pregnancy Logic
+                         if (charA.性别 !== charB.性别) {
+                             const female = charA.性别 === '女' ? charA : charB;
+                             // 10% chance
+                             if (Math.random() < 0.1) {
+                                 const tagId = '怀孕';
+                                 const existing = female.标签组.find(t => t.templateId === tagId);
+                                 if (existing) {
+                                     existing.层数 = 20; // Reset/Set to 20
+                                 } else {
+                                     female.标签组.push({ templateId: tagId, 层数: 20, 添加日期: turn });
+                                 }
+                             }
+                         }
+                    }
+                }
+                break;
+            }
         }
     });
 

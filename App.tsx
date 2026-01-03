@@ -315,6 +315,13 @@ function App() {
                     c.标签组[goodAtTrainingIndex].层数 -= 1;
                     if (c.标签组[goodAtTrainingIndex].层数 <= 0) c.标签组.splice(goodAtTrainingIndex, 1);
                 }
+                const pregIndex = c.标签组.findIndex(t => t.templateId === '怀孕');
+                if (pregIndex !== -1) {
+                    c.标签组[pregIndex].层数 -= 1;
+                    if (c.标签组[pregIndex].层数 <= 0) {
+                        c.标签组.splice(pregIndex, 1);
+                    }
+                }
             });
 
             // Regenerate Queue based on LATEST inTeam status

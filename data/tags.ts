@@ -532,5 +532,16 @@ export const TAGS: Record<string, TagTemplate> = {
     马娘可用: true,
     开局可选: false,
     显示层数: true
-  }
+  },
+  '怀孕': {
+    id: '怀孕',
+    显示名: '怀孕',
+    描述: '孕育着新生命。',
+    稀有度: 3,
+    互斥标签: [],
+    人类可用: true,
+    马娘可用: true,
+    开局可选: false,
+    显示层数: true
+  },
 };
