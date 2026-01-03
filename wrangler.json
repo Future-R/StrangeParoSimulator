@@ -5,7 +5,7 @@
   "compatibility_date": "2025-01-03",
   "assets": {
     "directory": "./dist",
-    "binding": "ASSETS"
+    "binding": "STATIC_ASSETS"
   },
   "observability": {
     "enabled": true
