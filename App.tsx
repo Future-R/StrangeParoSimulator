@@ -7,7 +7,6 @@ import { EventModal } from './components/EventModal';
 import { TagModal } from './components/TagModal';
 import { SetupScreen } from './components/SetupScreen';
 import { MobileCharacterList } from './components/MobileCharacterList';
-import { MobileGameScene } from './components/MobileGameScene';
 import { DevConsole } from './components/DevConsole';
 import { GameState, RuntimeCharacter, TagTemplate, RuntimeTag } from './types';
 import { createRuntimeCharacter, triggerCharacterEvent, resolvePendingEvent, getTurnDate, checkCondition, getAvailableStartTags, executeAction, processEvent } from './services/engine';
@@ -454,15 +453,7 @@ function App() {
             </div>
 
             <div className="flex-1 overflow-y-auto flex flex-col w-full relative">
-                {/* Mobile: Use MobileGameScene for visuals instead of plain list */}
-                <div className="md:hidden flex-shrink-0 h-[40vh] min-h-[250px]">
-                     <MobileGameScene 
-                        logs={gameState.logs} 
-                        characters={teamCharacters}
-                        pendingCharacterId={currentPendingEvent?.characterId}
-                     />
-                </div>
-                {/* Mobile: Collapsible List below scene */}
+                {/* Mobile: Character List Header */}
                 <div className="md:hidden flex-shrink-0 border-b border-gray-200">
                      <MobileCharacterList 
                         characters={teamCharacters} 
