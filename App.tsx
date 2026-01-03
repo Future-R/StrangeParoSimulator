@@ -135,7 +135,7 @@ function App() {
 
   const handleSetupComplete = (name: string, gender: '男'|'女', selectedTags: string[], starterId?: string) => {
       // Removed '摩耶重炮', '爱丽数码' from start pool as requested
-      const umaKeys = ['优秀素质', '东海帝王', '米浴', '北部玄驹', '无声铃鹿', '爱丽数码'];
+      const umaKeys = ['优秀素质', '东海帝王', '米浴', '北部玄驹', '无声铃鹿'];
       // If starterId is provided (Dev Mode), use it. Otherwise pick random.
       const chosenUmaKey = starterId || umaKeys[Math.floor(Math.random() * umaKeys.length)];
 
