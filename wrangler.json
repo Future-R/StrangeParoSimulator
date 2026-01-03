@@ -3,10 +3,6 @@
   "name": "strange-paro-simulator",
   "pages_build_output_dir": "dist",
   "compatibility_date": "2025-01-03",
-  "assets": {
-    "directory": "./dist",
-    "binding": "STATIC_ASSETS"
-  },
   "observability": {
     "enabled": true
   }
