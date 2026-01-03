@@ -1,3 +1,7 @@
+## 在线游玩
+
+https://future-r.github.io/StrangeParoSimulator/
+
 ## 本地运行
 
 **需求环境:**  Node.js
