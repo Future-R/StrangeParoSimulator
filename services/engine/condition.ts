@@ -180,10 +180,11 @@ export const checkCondition = (condition: string, char: RuntimeCharacter, turn: 
     if (cond.startsWith('随机')) {
       const match = cond.match(/随机\(\s*([^,~\)]+)\s*[,~]\s*([^,~\)]+)\s*\)\s*([>=<]+|==)\s*(.+)/);
       if (match) {
-        const min = evalValue(match[1].trim(), variables);
-        const max = evalValue(match[2].trim(), variables);
+        // Pass 'subject' to allow relative properties in ranges (e.g. 随机(1, 属性.体质))
+        const min = evalValue(match[1].trim(), variables, subject);
+        const max = evalValue(match[2].trim(), variables, subject);
         const op = match[3];
-        const val = evalValue(match[4].trim(), variables);
+        const val = evalValue(match[4].trim(), variables, subject);
         
         const rand = Math.floor(Math.random() * (max - min + 1)) + min;
         switch (op) {
@@ -215,8 +216,13 @@ export const checkCondition = (condition: string, char: RuntimeCharacter, turn: 
     }
 
     if (propPath.includes('在队伍')) {
-        const match = propPath.match(/在队伍\s*==\s*(true|false)/);
-        if (match) return subject.inTeam === (match[1] === 'true');
+        const match = propPath.match(/在队伍\s*([!=]=)\s*(true|false)/);
+        if (match) {
+            const op = match[1];
+            const val = match[2] === 'true';
+            if (op === '==') return subject.inTeam === val;
+            if (op === '!=') return subject.inTeam !== val;
+        }
     }
 
     if (propPath.includes('关系.')) {

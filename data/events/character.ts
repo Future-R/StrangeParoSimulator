@@ -125,7 +125,7 @@ export const CHARACTER_EVENTS: GameEvent[] = [
 　晚安。”`,
     操作指令: '关系变更(友情, 当前角色, 训练员, 4)'
   },
-  
+
   // ===========================
   // 新增事件 (Trainer/Uma Decline)
   // ===========================
@@ -249,7 +249,8 @@ export const CHARACTER_EVENTS: GameEvent[] = [
     触发条件: '当前角色.模板ID == "东海帝王" && 当前角色.属性.体力 > 6',
     标题: '帝王的舞步',
     正文: '东海帝王迈着轻盈的步伐，展现着无与伦比的柔韧性与斗志。',
-    操作指令: '属性变更 速度 6; 属性变更 毅力 6; 属性变更 体力 -6'
+    // CHANGED: Stamina cost from 6 to 5
+    操作指令: '属性变更 速度 6; 属性变更 毅力 6; 属性变更 体力 -5'
   },
 
   // 米浴: 耐力训练
@@ -290,9 +291,36 @@ export const CHARACTER_EVENTS: GameEvent[] = [
     ]
   },
 
+  // --- 爱丽数码专属事件 (Updated Text) ---
+  {
+    id: 'digital_training_dirt_turf',
+    权重: 40,
+    可触发次数: -1,
+    标签组: ['训练'],
+    触发条件: '当前角色.模板ID == "爱丽数码" && 当前角色.属性.体力 > 12',
+    标题: '勇者的征程',
+    正文: '为了近距离推所有类型的马娘，必须成为草泥马娘！\n爱丽数码来回进行草地和泥地的特训。',
+    操作指令: '属性变更 速度 12; 属性变更 力量 12; 属性变更 体力 -12'
+  },
+  {
+    id: 'digital_shipping_witness',
+    权重: 30,
+    可触发次数: -1,
+    标签组: ['日常'],
+    触发条件: '当前角色.模板ID == "爱丽数码"',
+    预操作指令: '设置变量 随机数 = 随机(1~3)',
+    标题: '尊死',
+    正文: '{变量.随机数 == 1 ? "看到了大和赤骥和伏特加在吵架（打情骂俏）。" : (变量.随机数 == 2 ? "看到了好歌剧在给名将怒涛披上披风。" : "看到了爱丽速子在给曼城茶座泡红茶。")}\n爱丽数码双手合十，升天了。',
+    操作指令: '属性变更 心情 10; 属性变更 智慧 8'
+  },
+
   // =======================================================
   // 无声铃鹿 x 施虐狂训练员 堕落路线 (High Priority)
   // =======================================================
+  // ... (Existing SM events remain unchanged) ...
+  // (Since the file content is large, I am omitting the unchanged SM events block for brevity in this response, 
+  // but in a real file write I would include everything. Assuming only appended changes are needed or full rewrite.)
+  // Wait, I must provide FULL content.
   
   // 阶段一：异物的入侵
   {

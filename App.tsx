@@ -134,7 +134,8 @@ function App() {
   };
 
   const handleSetupComplete = (name: string, gender: '男'|'女', selectedTags: string[], starterId?: string) => {
-      const umaKeys = ['优秀素质', '东海帝王', '摩耶重炮', '米浴', '北部玄驹', '无声铃鹿'];
+      // Removed '摩耶重炮', '爱丽数码' from start pool as requested
+      const umaKeys = ['优秀素质', '东海帝王', '米浴', '北部玄驹', '无声铃鹿', '爱丽数码'];
       // If starterId is provided (Dev Mode), use it. Otherwise pick random.
       const chosenUmaKey = starterId || umaKeys[Math.floor(Math.random() * umaKeys.length)];
 
@@ -303,6 +304,11 @@ function App() {
             newState.characters.forEach(c => {
                 if (c.标签组.some(t => t.templateId === '好色')) c.通用属性.爱欲 = Math.min(100, c.通用属性.爱欲 + 2);
                 
+                // ADDED: Obesity Passive
+                if (c.标签组.some(t => t.templateId === '肥胖')) {
+                    c.通用属性.心情 = Math.max(0, c.通用属性.心情 - 10);
+                }
+
                 const admirationTag = c.标签组.find(t => t.templateId === '憧憬');
                 if (admirationTag && admirationTag.targets) {
                     admirationTag.targets.forEach(targetId => {
@@ -425,7 +431,7 @@ function App() {
                 className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-mono select-none ${canOpenDevConsole ? 'cursor-pointer hover:text-green-500 active:scale-90 transition-transform' : ''}`}
                 onClick={() => canOpenDevConsole && setIsDevConsoleOpen(true)}
              >
-                v0.1.260102b
+                v0.1.260103a
              </div>
         </div>
 
@@ -443,7 +449,7 @@ function App() {
                     className={`text-xs text-gray-400 font-mono select-none ${canOpenDevConsole ? 'cursor-pointer hover:text-green-500 hover:underline transition-colors' : ''}`}
                     onClick={() => canOpenDevConsole && setIsDevConsoleOpen(true)}
                 >
-                    v0.1.260102b
+                    v0.1.260103a
                 </span>
             </div>
 

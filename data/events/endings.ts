@@ -43,6 +43,20 @@ export const ENDING_EVENTS: GameEvent[] = [
     正文: '{当前角色.名称}的债务已经堆积如山，债主找上门来了。\n“没钱还想跑比赛？” ',
     选项组: [ { 显示文本: '结束游戏', 操作指令: '' } ]
   },
+  
+  // --- Scandal Ending ---
+  {
+    id: 'ending_scandal_pregnancy',
+    权重: 500, // High priority to capture logic
+    可触发次数: 1,
+    标签组: ['结局', '坏结局'],
+    // Logic: If pregnant, as layers decrease (approaching 0), the chance of detection increases.
+    // Layers start at 20. Layer 20: 3/20 chance. Layer 4: 3/4 chance. Layer 3: 100% chance.
+    触发条件: '当前角色.标签组 存在 "怀孕" && 随机(1, 标签组(怀孕).层数) < 4',
+    标题: '隐秘的曝光',
+    正文: '随着日子的推移，{当前角色.名称}的身形发生了明显的变化，那是再宽大的运动服也无法掩盖的。\n纸终究包不住火，训练员与担当马娘发生不正当关系并致其怀孕的消息瞬间引爆了舆论。\n在闪光灯的狂轰滥炸和理事长的叹息声中，你的训练员生涯彻底结束了。',
+    选项组: [ { 显示文本: '结束游戏', 操作指令: '' } ]
+  },
 
   // --- Normal Ending (Fallback) ---
   {

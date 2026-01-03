@@ -60,7 +60,8 @@ export const executeAction = (
                 const attr = actionParts[1] as string;
                 const valStr = actionParts[2];
                 // Note: val is calculated once here. If '随机(min~max)' is used, it's evaluated now.
-                const val = evalValue(valStr, variables); 
+                // We pass 'target' as the subject for evalValue to allow "属性.体质" relative to the target char
+                const val = evalValue(valStr, variables, target); 
                 
                 const raceAttrs: (keyof RaceAttributes)[] = ['速度', '耐力', '力量', '毅力', '智慧'];
 
@@ -88,7 +89,7 @@ export const executeAction = (
                     const type = funcMatch[1].trim() as '友情' | '爱情';
                     const subjectKey = funcMatch[2].trim(); // Arg 1: Subject (Who feels)
                     const objectKey = funcMatch[3].trim();  // Arg 2: Object (Whom they feel about)
-                    const val = evalValue(funcMatch[4].trim(), variables); 
+                    const val = evalValue(funcMatch[4].trim(), variables, subject); 
                     
                     const subjectChar = resolveTargetCharacter(subjectKey, subject, allChars, variables);
                     const objectChar = resolveTargetCharacter(objectKey, subject, allChars, variables);
@@ -104,7 +105,7 @@ export const executeAction = (
                     // Default shorthand: 关系变更 友情 10
                     // Implies: Current Target (subject of the action context) -> Player (p1)
                     const type = actionParts[1] as '友情' | '爱情';
-                    const val = evalValue(actionParts[2], variables);
+                    const val = evalValue(actionParts[2], variables, target);
                     const p1 = allChars.find(c => c.instanceId === 'p1');
                     if (p1) {
                          const finalVal = applyRelationshipModifiers(val, p1, type);
@@ -142,7 +143,7 @@ export const executeAction = (
                                 const c1 = chars[i];
                                 const c2 = chars[j];
                                 // Re-evaluate val for each pair so "随机(5~15)" generates different numbers
-                                const val = evalValue(valStr, variables); 
+                                const val = evalValue(valStr, variables, subject); 
                                 
                                 const val12 = applyRelationshipModifiers(val, c2, type);
                                 if (!c1.关系列表[c2.instanceId]) c1.关系列表[c2.instanceId] = { 友情: 0, 爱情: 0 };
@@ -158,7 +159,7 @@ export const executeAction = (
                     const type = matchPair[1].trim() as '友情' | '爱情';
                     const charAKey = matchPair[2].trim();
                     const charBKey = matchPair[3].trim();
-                    const val = evalValue(matchPair[4].trim(), variables); // Updated
+                    const val = evalValue(matchPair[4].trim(), variables, subject); // Updated
                     const charA = resolveTargetCharacter(charAKey, subject, allChars, variables);
                     const charB = resolveTargetCharacter(charBKey, subject, allChars, variables);
                     if (charA && charB) {
@@ -232,7 +233,8 @@ export const executeAction = (
                             if (Array.isArray(list) && list.length > 0) variables[key] = list[Math.floor(Math.random() * list.length)];
                         }
                     } else if (expr.startsWith('随机')) {
-                        variables[key] = evalValue(expr);
+                        // Support relative evalValue using subject
+                        variables[key] = evalValue(expr, variables, subject);
                     } else {
                         // Try to resolve as a character reference first (e.g. 当前角色)
                         const resolved = resolveTargetCharacter(expr, subject, allChars, variables);
@@ -248,7 +250,7 @@ export const executeAction = (
             case '变量计算': {
                 const key = actionParts[1];
                 const opSym = actionParts[2];
-                const val = evalValue(actionParts[3], variables); // Updated
+                const val = evalValue(actionParts[3], variables, subject); // Updated
                 if (variables[key] !== undefined && typeof variables[key] === 'number') {
                     if (opSym === '+') variables[key] += val;
                     if (opSym === '-') variables[key] -= val;
@@ -367,13 +369,13 @@ export const executeAction = (
                          // Pregnancy Logic
                          if (charA.性别 !== charB.性别) {
                              const female = charA.性别 === '女' ? charA : charB;
-                             // 10% chance
-                             if (Math.random() < 0.1) {
-                                 const tagId = '怀孕';
-                                 const existing = female.标签组.find(t => t.templateId === tagId);
-                                 if (existing) {
-                                     existing.层数 = 20; // Reset/Set to 20
-                                 } else {
+                             const tagId = '怀孕';
+                             const existing = female.标签组.find(t => t.templateId === tagId);
+                             
+                             // Only impart pregnancy if NOT already pregnant
+                             if (!existing) {
+                                 // 10% chance
+                                 if (Math.random() < 0.1) {
                                      female.标签组.push({ templateId: tagId, 层数: 20, 添加日期: turn });
                                  }
                              }
