@@ -11,8 +11,8 @@ export const getTurnInfo = (turn: number) => {
       year, 
       month, 
       isLate, 
-      period: isLate ? '后半' : '前半',
-      dateStr: `第${year}年 ${month}月 ${isLate ? '后半' : '前半'}`
+      period: isLate ? '下旬' : '上旬',
+      dateStr: `第${year}年 ${month}月 ${isLate ? '下旬' : '上旬'}`
   };
 };
 

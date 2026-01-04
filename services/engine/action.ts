@@ -4,6 +4,17 @@ import { checkCondition } from './condition';
 import { resolveTargetCharacter } from './character';
 import { evalValue, applyRelationshipModifiers } from './utils';
 
+// Helper to ensure we are working with fresh character instances from the current state
+const refreshList = (list: any[], allChars: RuntimeCharacter[]): any[] => {
+    if (!Array.isArray(list)) return [];
+    return list.map(item => {
+        if (item && typeof item === 'object' && item.instanceId) {
+            return allChars.find(c => c.instanceId === item.instanceId) || item;
+        }
+        return item;
+    });
+};
+
 export const executeAction = (
     commandStr: string, 
     subject: RuntimeCharacter, 
@@ -133,10 +144,12 @@ export const executeAction = (
                     const type = matchList[1].trim() as '友情' | '爱情';
                     const listKey = matchList[2].trim().replace('变量.', '');
                     const valStr = matchList[3].trim();
-                    const list = variables[listKey];
                     
-                    if (Array.isArray(list)) {
-                        const chars = list as RuntimeCharacter[];
+                    if (Array.isArray(variables[listKey])) {
+                        const chars = refreshList(variables[listKey], allChars) as RuntimeCharacter[];
+                        // Update variable to fresh list to be safe
+                        variables[listKey] = chars;
+
                         // Apply mutually to all pairs in the list
                         for (let i = 0; i < chars.length; i++) {
                             for (let j = i + 1; j < chars.length; j++) {
@@ -229,14 +242,16 @@ export const executeAction = (
                         const listMatch = expr.match(/列表随机取值\(([^)]+)\)/);
                         if (listMatch) {
                             const listKey = listMatch[1].trim();
-                            const list = variables[listKey];
+                            // Refresh list before picking to ensure the picked object is fresh
+                            const list = refreshList(variables[listKey], allChars);
                             if (Array.isArray(list) && list.length > 0) variables[key] = list[Math.floor(Math.random() * list.length)];
                         }
                     } else if (expr.startsWith('列表首位')) {
                         const listMatch = expr.match(/列表首位\(([^)]+)\)/);
                         if (listMatch) {
                             const listKey = listMatch[1].trim();
-                            const list = variables[listKey];
+                            // Refresh list before picking
+                            const list = refreshList(variables[listKey], allChars);
                             if (Array.isArray(list) && list.length > 0) variables[key] = list[0];
                         }
                     } else if (expr.startsWith('随机')) {
@@ -293,8 +308,10 @@ export const executeAction = (
                 if (match) {
                     const listKey = match[1].trim();
                     const cond = match[2].trim();
+                    
                     if (Array.isArray(variables[listKey])) {
-                        variables[listKey] = (variables[listKey] as RuntimeCharacter[]).filter(c => 
+                        const freshList = refreshList(variables[listKey], allChars);
+                        variables[listKey] = (freshList as RuntimeCharacter[]).filter(c => 
                             checkCondition(cond, c, turn, undefined, allChars, variables)
                         );
                     }
@@ -308,8 +325,10 @@ export const executeAction = (
                     const listKey = match[1].trim();
                     const targetVar = match[2].trim();
                     const targetC = resolveTargetCharacter(targetVar, subject, allChars, variables);
+                    
                     if (Array.isArray(variables[listKey]) && targetC) {
-                        variables[listKey] = (variables[listKey] as RuntimeCharacter[]).filter(c => c.instanceId !== targetC.instanceId);
+                        const freshList = refreshList(variables[listKey], allChars);
+                        variables[listKey] = (freshList as RuntimeCharacter[]).filter(c => c.instanceId !== targetC.instanceId);
                     }
                  }
                  break;
@@ -322,7 +341,9 @@ export const executeAction = (
                      const listKey = match[1].trim();
                      const count = parseInt(match[2]);
                      if (Array.isArray(variables[listKey])) {
-                         variables[listKey] = variables[listKey].slice(0, count);
+                         // No need to refresh for slicing, but safer to do so
+                         const freshList = refreshList(variables[listKey], allChars);
+                         variables[listKey] = freshList.slice(0, count);
                      }
                  }
                  break;
@@ -334,7 +355,11 @@ export const executeAction = (
                      const listKey = match[1].trim();
                      const targetVar = match[2].trim();
                      const targetC = resolveTargetCharacter(targetVar, subject, allChars, variables);
-                     if (Array.isArray(variables[listKey]) && targetC) variables[listKey].push(targetC);
+                     if (Array.isArray(variables[listKey]) && targetC) {
+                         // Ensure list contains fresh objects before pushing
+                         variables[listKey] = refreshList(variables[listKey], allChars);
+                         variables[listKey].push(targetC);
+                     }
                  }
                  break;
             }
@@ -347,9 +372,10 @@ export const executeAction = (
                     const propPath = match[2].trim();
                     const order = match[3].trim().toLowerCase(); // 'asc' or 'desc'
                     
-                    const list = variables[listKey];
-                    if (Array.isArray(list)) {
-                        variables[listKey] = (list as RuntimeCharacter[]).sort((a, b) => {
+                    if (Array.isArray(variables[listKey])) {
+                        const freshList = refreshList(variables[listKey], allChars) as RuntimeCharacter[];
+                        
+                        variables[listKey] = freshList.sort((a, b) => {
                             // Extract values for a and b using propPath logic manually
                             const getVal = (c: RuntimeCharacter) => {
                                 // Support "关系.X.Y" where X can be '当前角色'
@@ -389,9 +415,13 @@ export const executeAction = (
                 if (match) {
                     const listKey = match[1].trim();
                     const innerCmd = match[2].trim();
-                    const list = variables[listKey];
-                    if (Array.isArray(list)) {
-                        list.forEach(c => {
+                    
+                    if (Array.isArray(variables[listKey])) {
+                        const freshList = refreshList(variables[listKey], allChars);
+                        // Update variable to fresh list
+                        variables[listKey] = freshList;
+                        
+                        freshList.forEach(c => {
                              executeAction(innerCmd, c, turn, allChars, variables, isSilent);
                         });
                     }
