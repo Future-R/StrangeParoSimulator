@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
-import { TagTemplate, CharacterTemplate } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+import { TagTemplate, CharacterTemplate, GameEvent } from '../types';
 import { getAvailableStartTags } from '../services/engine';
-import { CHARACTERS } from '../constants';
+import { CHARACTERS, EVENTS } from '../constants';
 
 interface SetupScreenProps {
   onComplete: (name: string, gender: '男' | '女', selectedTags: string[], starterId?: string) => void;
@@ -68,6 +68,9 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
   
   // Dev Mode State
   const [selectedStarterId, setSelectedStarterId] = useState<string | null>(null);
+  
+  // MOD Loader Ref
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isNameEmpty = name.trim().length === 0;
   const isDevMode = name === '未来';
@@ -147,6 +150,70 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
     }
 
     onComplete(name, finalGender, selectedTags, selectedStarterId || undefined);
+  };
+
+  // MOD Parsing Logic
+  const handleModLoad = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    let loadedCount = 0;
+    let updatedCount = 0;
+
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const text = await file.text();
+        
+        try {
+            // Simple robust parsing for array export
+            // Matches: export const [VARNAME] [TYPE_OPT] = [
+            const match = text.match(/export const\s+\w+\s*(?::\s*GameEvent\[\])?\s*=\s*\[/);
+            if (!match) {
+                console.warn(`Skipping ${file.name}: No event array export found.`);
+                continue;
+            }
+            
+            const startIdx = match.index! + match[0].length - 1; // Index of '['
+            const endIdx = text.lastIndexOf(']');
+            
+            if (endIdx === -1 || endIdx <= startIdx) {
+                 console.warn(`Skipping ${file.name}: Malformed array structure.`);
+                 continue;
+            }
+
+            const arrayStr = text.substring(startIdx, endIdx + 1);
+            
+            // Execute as anonymous function to get the array
+            // NOTE: This assumes the MOD file content inside the array is valid JS/JSON-like
+            // and does not rely on external variables or imports.
+            const newEvents = new Function(`return ${arrayStr}`)() as GameEvent[];
+
+            if (Array.isArray(newEvents)) {
+                newEvents.forEach(ev => {
+                    if (!ev.id) return;
+                    const existingIdx = EVENTS.findIndex(e => e.id === ev.id);
+                    if (existingIdx !== -1) {
+                        EVENTS[existingIdx] = ev;
+                        updatedCount++;
+                    } else {
+                        EVENTS.push(ev);
+                        loadedCount++;
+                    }
+                });
+            }
+        } catch (err) {
+            console.error(`Error loading MOD ${file.name}:`, err);
+            alert(`加载 MOD ${file.name} 失败: 格式错误或语法不支持`);
+        }
+    }
+
+    if (loadedCount > 0 || updatedCount > 0) {
+        alert(`MOD 加载完成！\n\n新增事件: ${loadedCount}\n更新事件: ${updatedCount}\n\n事件池已更新。`);
+    } else {
+        alert("未从文件中提取到有效事件。请确保文件包含 `export const XX = [...]` 格式的事件数组。");
+    }
+    
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   // Improved Visual Styles for Tags
@@ -294,6 +361,26 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
                    >
                       登 记
                    </button>
+                </div>
+
+                {/* MOD Loader Trigger */}
+                <div className="mt-4 flex justify-center">
+                    <button 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="text-xs text-gray-400 hover:text-[#66D814] hover:underline cursor-pointer flex items-center gap-1 transition-colors"
+                        title="导入 .ts 或 .js 文件以加载自定义事件"
+                    >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                        加载外部事件包
+                    </button>
+                    <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        className="hidden" 
+                        accept=".ts,.js,.txt" 
+                        multiple 
+                        onChange={handleModLoad}
+                    />
                 </div>
 
              </div>
