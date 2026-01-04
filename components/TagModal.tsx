@@ -31,10 +31,11 @@ export const TagModal: React.FC<TagModalProps> = ({ isOpen, tag, targetNames, on
       headerBg = "bg-gradient-to-r from-amber-50 to-yellow-50";
   }
   else if (tag.稀有度 >= 4) { // SSR (Rainbow/Diamond)
+      // Updated colors
       rarityText = "SSR";
-      rarityBadgeClass = "bg-gradient-to-br from-fuchsia-100 to-purple-100 text-purple-700 border-purple-300";
-      titleColor = "text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600";
-      headerBg = "bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50";
+      rarityBadgeClass = "bg-gradient-to-br from-emerald-100 to-pink-100 text-purple-700 border-pink-300";
+      titleColor = "text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 via-sky-600 to-pink-600";
+      headerBg = "bg-gradient-to-r from-emerald-50 via-sky-50 to-pink-50";
   }
 
   return (

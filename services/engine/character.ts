@@ -38,6 +38,11 @@ export const createRuntimeCharacter = (template: CharacterTemplate, instanceId: 
   if (hasTag('富豪')) char.通用属性.财富 += 5;
   if (hasTag('魅力十足')) char.通用属性.魅力 += 5;
   if (hasTag('路人脸')) char.通用属性.魅力 = Math.max(0, char.通用属性.魅力 - 5);
+  
+  // Logic: Uma Musume Trainer starts with lower Knowledge due to relearning curve
+  if (hasTag('训练员') && hasTag('马娘')) {
+      char.通用属性.学识 = Math.max(0, char.通用属性.学识 - 5);
+  }
 
   return char;
 };

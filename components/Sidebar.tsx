@@ -56,7 +56,8 @@ export const TagChip: React.FC<{ tag: RuntimeTag; onClick?: (t: RuntimeTag) => v
         className = "bg-gradient-to-b from-yellow-200 via-yellow-300 to-yellow-400 border-yellow-500 text-yellow-900 shadow-sm";
     }
     else if (template.稀有度 >= 4) { // SSR (Rainbow Diamond)
-        className = "bg-gradient-to-r from-indigo-200 via-purple-200 to-pink-200 border-purple-400 text-purple-900 shadow-sm animate-pulse-slow";
+        // Updated: Green/Teal -> Pink/Purple gradient, removed pulse animation to stop text blinking
+        className = "bg-gradient-to-r from-emerald-200 via-sky-200 to-pink-200 border-pink-300 text-purple-900 shadow-sm";
     }
 
     return (

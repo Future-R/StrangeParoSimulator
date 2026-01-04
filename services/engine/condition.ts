@@ -91,6 +91,22 @@ export const checkCondition = (condition: string, char: RuntimeCharacter, turn: 
         if (match) return turnInfo.period === match[1];
     }
 
+    if (cond.includes('队伍人数')) {
+        const match = cond.match(/队伍人数\s*([>=<]+|==)\s*(\d+)/);
+        if (match) {
+            const op = match[1];
+            const val = parseInt(match[2]);
+            const teamSize = allChars.filter(c => c.inTeam).length;
+            switch (op) {
+                case '>': return teamSize > val;
+                case '>=': return teamSize >= val;
+                case '<': return teamSize < val;
+                case '<=': return teamSize <= val;
+                case '==': return teamSize === val;
+            }
+        }
+    }
+
     if (cond.startsWith('变量.')) {
         const match = cond.match(/变量\.([a-zA-Z0-9_\u4e00-\u9fa5]+)\s*([>=<]+|==)\s*(-?\d+)/);
         if (match && variables) {
@@ -181,10 +197,10 @@ export const checkCondition = (condition: string, char: RuntimeCharacter, turn: 
       const match = cond.match(/随机\(\s*([^,~\)]+)\s*[,~]\s*([^,~\)]+)\s*\)\s*([>=<]+|==)\s*(.+)/);
       if (match) {
         // Pass 'subject' to allow relative properties in ranges (e.g. 随机(1, 属性.体质))
-        const min = evalValue(match[1].trim(), variables, subject);
-        const max = evalValue(match[2].trim(), variables, subject);
+        const min = evalValue(match[1].trim(), variables, subject, allChars);
+        const max = evalValue(match[2].trim(), variables, subject, allChars);
         const op = match[3];
-        const val = evalValue(match[4].trim(), variables, subject);
+        const val = evalValue(match[4].trim(), variables, subject, allChars);
         
         const rand = Math.floor(Math.random() * (max - min + 1)) + min;
         switch (op) {

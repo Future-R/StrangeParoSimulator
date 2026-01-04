@@ -112,7 +112,7 @@ export const DevConsole: React.FC<DevConsoleProps> = ({ isOpen, onClose, onExecu
             <span className="w-3 h-3 rounded-full bg-red-500"></span>
             <span className="w-3 h-3 rounded-full bg-yellow-500"></span>
             <span className="w-3 h-3 rounded-full bg-green-500"></span>
-            <span className="ml-2 text-[#66D814] font-bold tracking-widest text-sm">FUTURE_TERMINAL_V1.0</span>
+            <span className="ml-2 text-[#66D814] font-bold tracking-widest text-sm">未来终端系统 V1.0</span>
           </div>
           <div className="flex gap-4 items-center">
               <button 
@@ -158,7 +158,7 @@ export const DevConsole: React.FC<DevConsoleProps> = ({ isOpen, onClose, onExecu
                             onClick={onClose}
                             className="px-4 py-1.5 border border-red-900 text-red-500 hover:bg-red-900/20 hover:text-red-400 rounded text-sm transition-colors"
                         >
-                            关闭 EXIT
+                            关闭
                         </button>
                         <button 
                             onClick={() => setInput('')}
@@ -170,7 +170,7 @@ export const DevConsole: React.FC<DevConsoleProps> = ({ isOpen, onClose, onExecu
                             onClick={handleRun}
                             className="px-6 py-1.5 bg-[#66D814] text-black font-bold hover:bg-[#7aff25] rounded text-sm transition-colors shadow-[0_0_10px_rgba(102,216,20,0.4)]"
                         >
-                            执行 EXECUTE
+                            执行
                         </button>
                     </div>
                 </div>

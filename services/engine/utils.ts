@@ -11,19 +11,13 @@ export const getTurnInfo = (turn: number) => {
       year, 
       month, 
       isLate, 
-      period: isLate ? '下旬' : '上旬',
-      dateStr: `第${year}年 ${month}月 ${isLate ? '下旬' : '上旬'}`
+      period: isLate ? '后半' : '前半',
+      dateStr: `第${year}年 ${month}月 ${isLate ? '后半' : '前半'}`
   };
 };
 
 export const getTurnDate = (turn: number): string => {
   // Check specifically for confinement tag on player (p1)
-  // We need to access this via window.GameDebug or similar since we don't have direct access to state here,
-  // BUT `getTurnDate` is usually called within React components where we pass props,
-  // or via `getTurnInfo` which is pure.
-  // To keep it clean, we will rely on the caller to handle visual obfuscation OR 
-  // we check the global window.GameDebug if available (hacky but works for this specific requested feature)
-  
   if (typeof window !== 'undefined' && window.GameDebug) {
       const p1 = window.GameDebug.characters.find(c => c.instanceId === 'p1');
       if (p1 && p1.标签组.some(t => t.templateId === '监禁')) {
@@ -35,10 +29,14 @@ export const getTurnDate = (turn: number): string => {
   return getTurnInfo(turn).dateStr;
 };
 
-export const evalValue = (valStr: string, variables?: Record<string, any>, subject?: RuntimeCharacter): number => {
+export const evalValue = (valStr: string, variables?: Record<string, any>, subject?: RuntimeCharacter, allChars?: RuntimeCharacter[]): number => {
     if (!valStr) return 0;
     
     const str = String(valStr).trim();
+
+    if (str === '队伍人数' && allChars) {
+        return allChars.filter(c => c.inTeam).length;
+    }
 
     // 0. Explicit Variable Syntax: 变量.X
     if (str.startsWith('变量.') && variables) {
@@ -54,8 +52,8 @@ export const evalValue = (valStr: string, variables?: Record<string, any>, subje
     // Supports both ',' and '~' for backward compatibility
     const randomMatch = str.match(/随机\(\s*([^,~\)]+)\s*[,~]\s*([^,~\)]+)\s*\)/);
     if (randomMatch) {
-        const minVal = evalValue(randomMatch[1].trim(), variables, subject);
-        const maxVal = evalValue(randomMatch[2].trim(), variables, subject);
+        const minVal = evalValue(randomMatch[1].trim(), variables, subject, allChars);
+        const maxVal = evalValue(randomMatch[2].trim(), variables, subject, allChars);
         return Math.floor(Math.random() * (maxVal - minVal + 1)) + minVal;
     }
 

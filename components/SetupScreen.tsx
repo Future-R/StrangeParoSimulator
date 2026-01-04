@@ -176,19 +176,19 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
           title = "text-[#92400E] drop-shadow-sm";
           desc = "text-[#B45309]";
           badge = <span className="text-xs bg-gradient-to-b from-amber-100 to-amber-200 text-amber-800 px-1.5 rounded border border-amber-300 font-bold font-serif shadow-sm">SR</span>;
-      } else if (tag.稀有度 >= 4) { // SSR: Rainbow Diamond
-          // REMOVED 'overflow-hidden' from here to prevent clipping of SelectionFrame
-          container = "bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border-purple-300 relative group hover:shadow-purple-200/50 hover:shadow-lg transition-all";
-          title = "text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 drop-shadow-sm";
+      } else if (tag.稀有度 >= 4) { // SSR: Rainbow Diamond (Green/Teal -> Pink/Purple)
+          // Updated colors
+          container = "bg-gradient-to-br from-emerald-50 via-sky-50 to-pink-50 border-pink-300 relative group hover:shadow-pink-200/50 hover:shadow-lg transition-all";
+          title = "text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 via-sky-600 to-pink-600 drop-shadow-sm";
           desc = "text-purple-700";
-          badge = <span className="text-xs bg-gradient-to-br from-fuchsia-100 to-purple-100 text-purple-700 px-1.5 rounded border border-purple-300 font-bold font-serif shadow-sm">SSR</span>;
+          badge = <span className="text-xs bg-gradient-to-br from-emerald-100 to-pink-100 text-purple-700 px-1.5 rounded border border-pink-300 font-bold font-serif shadow-sm">SSR</span>;
       }
 
       // Selection Override (Highlight/Glow)
       if (isSelected) {
           // Add Green Selection Frame Effect on top of material
           if (tag.稀有度 >= 4) {
-               container += " ring-2 ring-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.4)] transform scale-[1.02]";
+               container += " ring-2 ring-pink-400 shadow-[0_0_15px_rgba(244,114,182,0.4)] transform scale-[1.02]";
           } else if (tag.稀有度 === 3) {
                container += " ring-2 ring-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.4)] transform scale-[1.02]";
           } else if (tag.稀有度 === 2) {
