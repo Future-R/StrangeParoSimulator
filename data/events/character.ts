@@ -315,7 +315,7 @@ export const CHARACTER_EVENTS: GameEvent[] = [
   // New Digital Event
   {
     id: 'digital_self_denial',
-    权重: 15,
+    权重: 5,
     可触发次数: -1,
     标签组: ['日常'],
     触发条件: '当前角色.模板ID == "爱丽数码"',
