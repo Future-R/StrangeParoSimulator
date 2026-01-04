@@ -670,7 +670,7 @@ export const SYSTEM_EVENTS: GameEvent[] = [
     标题: '招募结果',
     正文: '你鼓起勇气，向{目标.名称}发出了加入队伍的邀请……',
     分支组: [
-      // Priority Traits
+      { 判别式: '目标.标签组 存在 "自卑"', 操作指令: '跳转 scout_success_inferior' },
       { 判别式: '目标.标签组 存在 "沉重"', 操作指令: '跳转 scout_success_heavy' },
       { 判别式: '目标.标签组 存在 "宅宅"', 操作指令: '跳转 scout_success_otaku' },
       { 判别式: '目标.标签组 存在 "恋爱脑"', 操作指令: '跳转 scout_success_love' },
@@ -682,12 +682,20 @@ export const SYSTEM_EVENTS: GameEvent[] = [
       { 判别式: '目标.标签组 存在 "大小姐"', 操作指令: '跳转 scout_success_ojou' },
       { 判别式: '目标.标签组 存在 "赌狗"', 操作指令: '跳转 scout_success_gambler' },
       { 判别式: '目标.标签组 存在 "木头"', 操作指令: '跳转 scout_success_wooden' },
-      // Default
       { 判别式: 'true', 操作指令: '跳转 scout_success_normal' }
     ]
   },
   
-  // --- Specific Success Events ---
+  {
+    id: 'scout_success_inferior',
+    权重: 0,
+    可触发次数: -1,
+    标签组: ['招募', '成功'],
+    触发条件: 'false',
+    标题: '卑微的愿望',
+    正文: '“哎？邀请我吗？\n像我这样的人……真的可以吗？会不会拖大家的后腿……\n如果不嫌弃的话……我会努力不给大家添麻烦的……”',
+    操作指令: '让角色入队(目标); 关系变更(友情, 目标, 训练员, 10); 目标.属性变更 毅力 5'
+  },
   {
     id: 'scout_success_heavy',
     权重: 0,
