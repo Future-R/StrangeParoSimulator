@@ -213,6 +213,24 @@ export const checkCondition = (condition: string, char: RuntimeCharacter, turn: 
       }
     }
 
+    // Fix: Add check for triggered events
+    if (propPath.includes('已触发事件.')) {
+        const match = propPath.match(/已触发事件\.([\w_]+)\s*([>=<]+|==)\s*(\d+)/);
+        if (match) {
+            const eventId = match[1];
+            const op = match[2];
+            const val = parseInt(match[3]);
+            const count = subject.已触发事件[eventId] || 0;
+            switch (op) {
+                case '>': return count > val;
+                case '>=': return count >= val;
+                case '<': return count < val;
+                case '<=': return count <= val;
+                case '==': return count === val;
+            }
+        }
+    }
+
     if (propPath.includes('属性.')) {
       const match = propPath.match(/属性\.([\w\u4e00-\u9fa5]+)\s*([>=<]+|==)\s*(\d+)/);
       if (match) {

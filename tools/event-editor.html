@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TS 事件数据编辑器 v1.1</title>
+    <title>TS 事件数据编辑器 v1.2</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -265,11 +265,11 @@
                     },
                     {
                         title: "标签操作",
-                        content: "获得：`获得标签 [标签ID] [层数?]`\n移除：`移除标签 [标签ID]`"
+                        content: "获得：`获得标签 [标签ID] [层数?]`\n变更：`标签变更 [标签ID] [增量]`\n移除：`移除标签 [标签ID]`"
                     },
                     {
                         title: "流程控制",
-                        content: "跳转：`跳转 [事件ID]`\n概率跳转：`概率跳转 [概率0-100] [事件ID]`\n角色入队：`让角色入队([目标])`"
+                        content: "跳转：`跳转 [事件ID]`\n概率跳转：`概率跳转 [概率0-100] [事件ID]`\n继续：`继续 [事件ID]` (中断当前执行，等待用户点击继续)\n角色入队：`让角色入队([目标])`\n交合：`交合([角色A], [角色B])`"
                     },
                     {
                         title: "变量操作",
@@ -277,7 +277,7 @@
                     },
                     {
                         title: "列表/集合操作",
-                        content: "筛选：`列表筛选([变量名], [条件])`\n排除：`列表排除([变量名], [目标角色])`\n截取：`列表截取([变量名], [数量])`\n执行：`列表执行([变量名], [指令])`\n添加：`列表添加([变量名], [目标])`"
+                        content: "筛选：`列表筛选([变量名], [条件])`\n排除：`列表排除([变量名], [目标角色])`\n截取：`列表截取([变量名], [数量])`\n排序：`列表排序([变量名], [属性路径/关系路径], [asc/desc])`\n执行：`列表执行([变量名], [指令])`\n添加：`列表添加([变量名], [目标])`"
                     }
                 ]
             },
@@ -294,7 +294,7 @@
                     },
                     {
                         title: "标签检查",
-                        content: "存在：`[对象.]标签组 存在 \"标签ID\"`\n不存在：`[对象.]标签组 不存在 \"标签ID\"`"
+                        content: "存在：`[对象.]标签组 存在 \"标签ID\"`\n不存在：`[对象.]标签组 不存在 \"标签ID\"`\n层数：`[对象.]标签组(标签ID).层数 [>=<] [数值]`"
                     },
                     {
                         title: "关系检查",
@@ -362,7 +362,6 @@
                 const items = obj.map(item => toTSString(item, indentLevel + 1)).join(',\n' + childIndent);
                 return `[\n${childIndent}${items}\n${indent}]`;
             } else if (typeof obj === 'object' && obj !== null) {
-                // CHANGED: Allow empty strings! Do not filter out v === ''
                 const entries = Object.entries(obj).filter(([k,v]) => v !== undefined && v !== null);
                 if (entries.length === 0) return '{}';
                 
@@ -443,6 +442,11 @@
             const [activeEventIndex, setActiveEventIndex] = useState(-1);
             const [filter, setFilter] = useState('');
             const [showDocs, setShowDocs] = useState(false);
+            
+            // Rename State
+            const [editingFileIndex, setEditingFileIndex] = useState(-1);
+            const [editName, setEditName] = useState('');
+            
             const fileInputRef = useRef(null);
 
             const activeFile = activeFileIndex >= 0 ? files[activeFileIndex] : null;
@@ -484,14 +488,12 @@
                     events: []
                 };
                 setFiles(prev => [...prev, newFile]);
-                // Set active index to the new file (which will be at the end)
                 setTimeout(() => setActiveFileIndex(files.length), 0);
                 setActiveEventIndex(-1);
             };
 
             const handleSave = (index) => {
                 const file = files[index];
-                // Clean up tags in events to remove empty strings caused by trailing commas during editing
                 const cleanedEvents = file.events.map(ev => ({
                     ...ev,
                     标签组: (ev.标签组 || []).filter(Boolean)
@@ -506,6 +508,34 @@
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
+            };
+
+            // --- Rename Handlers ---
+            const startRename = (index, currentName, e) => {
+                e.stopPropagation();
+                setEditingFileIndex(index);
+                setEditName(currentName.replace(/\.ts$/i, ''));
+            };
+
+            const saveRename = () => {
+                if (editingFileIndex === -1) return;
+                const newName = editName.trim();
+                if (newName) {
+                    setFiles(prev => {
+                        const next = [...prev];
+                        // Ensure .ts extension
+                        const finalName = newName.endsWith('.ts') ? newName : newName + '.ts';
+                        next[editingFileIndex].name = finalName;
+                        return next;
+                    });
+                }
+                setEditingFileIndex(-1);
+                setEditName('');
+            };
+
+            const cancelRename = () => {
+                setEditingFileIndex(-1);
+                setEditName('');
             };
 
             // --- Event Handlers ---
@@ -591,17 +621,43 @@
                                     onClick={() => { setActiveFileIndex(idx); setActiveEventIndex(-1); /* Filter retained */ }}
                                     className={`list-item py-1.5 px-3 flex justify-between items-center group text-sm ${idx === activeFileIndex ? 'active' : ''}`}
                                 >
-                                    <span className="truncate flex items-center gap-2">
-                                        <i className="fas fa-file-code text-keyword text-xs"></i> 
-                                        {f.name}
+                                    <span className="truncate flex items-center gap-2 flex-1 min-w-0">
+                                        <i className="fas fa-file-code text-keyword text-xs flex-shrink-0"></i> 
+                                        {idx === editingFileIndex ? (
+                                            <input 
+                                                className="bg-[#111] text-white border border-accent-color px-1 py-0 w-full rounded focus:outline-none"
+                                                value={editName}
+                                                onChange={e => setEditName(e.target.value)}
+                                                onBlur={saveRename}
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter') saveRename();
+                                                    if (e.key === 'Escape') cancelRename();
+                                                }}
+                                                autoFocus
+                                                onClick={e => e.stopPropagation()}
+                                            />
+                                        ) : (
+                                            <span className="truncate" title={f.name}>{f.name.replace(/\.ts$/i, '')}</span>
+                                        )}
                                     </span>
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); handleSave(idx); }}
-                                        className="btn-icon opacity-0 group-hover:opacity-100" 
-                                        title="保存"
-                                    >
-                                        <i className="fas fa-save"></i>
-                                    </button>
+                                    <div className="flex gap-1">
+                                        {idx !== editingFileIndex && (
+                                            <button 
+                                                onClick={(e) => startRename(idx, f.name, e)}
+                                                className="btn-icon opacity-0 group-hover:opacity-100 text-xs" 
+                                                title="重命名"
+                                            >
+                                                <i className="fas fa-pen"></i>
+                                            </button>
+                                        )}
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleSave(idx); }}
+                                            className="btn-icon opacity-0 group-hover:opacity-100" 
+                                            title="保存"
+                                        >
+                                            <i className="fas fa-save"></i>
+                                        </button>
+                                    </div>
                                 </div>
                             ))}
                         </div>

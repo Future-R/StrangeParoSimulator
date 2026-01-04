@@ -387,7 +387,7 @@ export const CHARACTER_EVENTS: GameEvent[] = [
   // 阶段一：异物的入侵
   {
     id: 'suzuka_sm_01_collar',
-    权重: 200, 
+    权重: 60, 
     可触发次数: 1,
     标签组: ['性', '调教'],
     触发条件: '当前角色.模板ID == "无声铃鹿" && 训练员.标签组 存在 "施虐狂" && 当前角色.标签组 不存在 "受虐狂" && (当前角色.关系.玩家.爱情 > 10 || 当前角色.关系.玩家.友情 > 30)',
@@ -430,7 +430,7 @@ export const CHARACTER_EVENTS: GameEvent[] = [
   // 阶段二：感官的混淆
   {
     id: 'suzuka_sm_02_sensitive',
-    权重: 150,
+    权重: 60,
     可触发次数: 1,
     标签组: ['性', '调教'],
     // 依赖前置事件 01
@@ -475,7 +475,7 @@ export const CHARACTER_EVENTS: GameEvent[] = [
   // 原"条件的反射/公开处刑"被替换，以保护其在其他人面前的形象
   {
     id: 'suzuka_sm_03_remote',
-    权重: 150,
+    权重: 60,
     可触发次数: 1,
     标签组: ['性', '调教'],
     // 依赖前置事件 02
@@ -519,7 +519,7 @@ export const CHARACTER_EVENTS: GameEvent[] = [
   // 阶段四：堕落的觉醒 (Final)
   {
     id: 'suzuka_sm_04_awaken',
-    权重: 300,
+    权重: 60,
     可触发次数: 1,
     标签组: ['性', '觉醒'],
     // 依赖前置事件 03
