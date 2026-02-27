@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { TagTemplate, CharacterTemplate, GameEvent } from '../types';
 import { getAvailableStartTags } from '../services/engine';
 import { CHARACTERS, EVENTS } from '../constants';
+import { ChangelogModal } from './ChangelogModal';
 
 interface SetupScreenProps {
   onComplete: (name: string, gender: '男' | '女', selectedTags: string[], starterId?: string) => void;
@@ -68,6 +69,9 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
   
   // Dev Mode State
   const [selectedStarterId, setSelectedStarterId] = useState<string | null>(null);
+  
+  // Modal State
+  const [isChangelogOpen, setIsChangelogOpen] = useState(false);
   
   // MOD Loader Ref
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -371,7 +375,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
                         title="导入 .ts 或 .js 文件以加载自定义事件"
                     >
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                        加载外部事件包
+                        加载外部事件包 (MOD)
                     </button>
                     <input 
                         type="file" 
@@ -527,6 +531,17 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
             </div>
         )}
       </div>
+
+      {/* Version Number */}
+      <button 
+        onClick={() => setIsChangelogOpen(true)}
+        className="mt-6 text-gray-500 text-sm font-bold tracking-wider hover:text-[#66D814] transition-colors drop-shadow-sm"
+      >
+        v0.2.260228a
+      </button>
+
+      {/* Changelog Modal */}
+      <ChangelogModal isOpen={isChangelogOpen} onClose={() => setIsChangelogOpen(false)} />
     </div>
   );
 };
