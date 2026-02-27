@@ -88,7 +88,8 @@ function App() {
       setActiveTagData({ tag: template, targetNames });
   };
 
-  const handleDevExecute = (command: string) => {
+  const handleDevExecute = (command: string): string[] => {
+      let outputs: string[] = [];
       setGameState(prev => {
           // Clone state roughly
           const newState = JSON.parse(JSON.stringify(prev)) as GameState;
@@ -101,6 +102,7 @@ function App() {
           try {
               // Execute Action using engine
               const result = executeAction(command, subject, newState.currentTurn, newState.characters, {});
+              outputs = result.printOutputs || [];
               
               newState.logs.push({
                   turn: newState.currentTurn,
@@ -121,6 +123,7 @@ function App() {
               }
           } catch (e) {
               console.error(e);
+              outputs = [`[错误] ${String(e)}`];
               newState.logs.push({
                   turn: newState.currentTurn,
                   characterName: 'ERROR',
@@ -128,9 +131,9 @@ function App() {
                   type: 'system'
               });
           }
-
           return newState;
       });
+      return outputs;
   };
 
   const handleSetupComplete = (name: string, gender: '男'|'女', selectedTags: string[], starterId?: string) => {
@@ -270,6 +273,8 @@ function App() {
             // Bad Ending Check
             for (const char of prev.characters) {
                 if (!char.inTeam) continue;
+                
+                // 1. Hardcoded Stat Checks (Stat-based Failures)
                 let badEndId: string | null = null;
                 if (char.通用属性.体质 < 0) badEndId = 'ending_low_con';
                 else if (char.通用属性.学识 < 0) badEndId = 'ending_low_int';
@@ -279,6 +284,19 @@ function App() {
                 if (badEndId) {
                     const endEvent = ENDING_EVENTS.find(e => e.id === badEndId);
                     if (endEvent) return triggerCharacterEvent(newState, char.instanceId, endEvent);
+                }
+
+                // 2. Dynamic Ending Checks (e.g. Scandal/Pregnancy)
+                const dynamicEnding = ENDING_EVENTS.find(e => {
+                     // Skip manual endings (condition 'false') and timeout ending (handled later)
+                     if (e.触发条件 === 'false') return false;
+                     if (e.id === 'ending_demo_thanks') return false;
+                     
+                     return checkCondition(e.触发条件, char, prev.currentTurn, undefined, prev.characters);
+                });
+
+                if (dynamicEnding) {
+                    return triggerCharacterEvent(newState, char.instanceId, dynamicEnding);
                 }
             }
 
@@ -304,9 +322,21 @@ function App() {
             newState.characters.forEach(c => {
                 if (c.标签组.some(t => t.templateId === '好色')) c.通用属性.爱欲 = Math.min(100, c.通用属性.爱欲 + 2);
                 
-                // ADDED: Obesity Passive
                 if (c.标签组.some(t => t.templateId === '肥胖')) {
                     c.通用属性.心情 = Math.max(0, c.通用属性.心情 - 10);
+                    // Obesity reduces Charm
+                    c.通用属性.魅力 = Math.max(0, c.通用属性.魅力 - 1);
+                }
+
+                if (c.标签组.some(t => t.templateId === '怀孕')) {
+                    // Speed penalty: -10 to -20
+                    const speedPenalty = Math.floor(Math.random() * 11) + 10;
+                    c.竞赛属性.速度 = Math.max(0, c.竞赛属性.速度 - speedPenalty);
+                    
+                    // Constitution penalty: 50% chance -1
+                    if (Math.random() < 0.5) {
+                        c.通用属性.体质 = c.通用属性.体质 - 1;
+                    }
                 }
 
                 const admirationTag = c.标签组.find(t => t.templateId === '憧憬');
@@ -431,7 +461,7 @@ function App() {
                 className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-mono select-none ${canOpenDevConsole ? 'cursor-pointer hover:text-green-500 active:scale-90 transition-transform' : ''}`}
                 onClick={() => canOpenDevConsole && setIsDevConsoleOpen(true)}
              >
-                v0.2.260104c
+                0.2.260104c
              </div>
         </div>
 
@@ -449,7 +479,7 @@ function App() {
                     className={`text-xs text-gray-400 font-mono select-none ${canOpenDevConsole ? 'cursor-pointer hover:text-green-500 hover:underline transition-colors' : ''}`}
                     onClick={() => canOpenDevConsole && setIsDevConsoleOpen(true)}
                 >
-                    v0.2.260104c
+                    0.2.260104c
                 </span>
             </div>
 
