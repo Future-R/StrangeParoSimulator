@@ -23,12 +23,15 @@ export const executeAction = (
     variables: Record<string, any>, 
     isSilent: boolean = false,
     eventTags: string[] = []
-): { newVariables?: Record<string, any>, nextEventId?: string, isWait?: boolean } => {
+): { newVariables?: Record<string, any>, nextEventId?: string, isWait?: boolean, printOutputs?: string[] } => {
     if (!commandStr) return {};
     
     // Removed global comma normalization per user request to preserve Chinese commas in text
     const commands = commandStr.split(';').map(s => s.trim()).filter(s => s);
-    const result: { newVariables?: Record<string, any>, nextEventId?: string, isWait?: boolean } = { newVariables: {} };
+    const result: { newVariables?: Record<string, any>, nextEventId?: string, isWait?: boolean, printOutputs: string[] } = { 
+        newVariables: {},
+        printOutputs: []
+    };
 
     commands.forEach(rawCmd => {
         // 1. Normalization for common natural language typos/aliases
@@ -466,6 +469,68 @@ export const executeAction = (
                                  }
                              }
                          }
+                    }
+                }
+                break;
+            }
+            case '打印': {
+                const fullCmd = cmd; // Use normalized cmd
+                // Support both 打印(X) and 打印 X
+                const match = fullCmd.match(/打印(?:\((.+)\)|\s+(.+))/);
+                if (match) {
+                    const expr = (match[1] || match[2]).trim().replace(/['"]/g, '');
+                    let output = '';
+                    
+                    // Try to resolve as a variable
+                    if (expr.startsWith('变量.')) {
+                        const varName = expr.substring(3);
+                        const val = variables[varName];
+                        output = `[变量] ${varName} = ${val !== undefined ? (typeof val === 'object' ? val.名称 : val) : '未定义'}`;
+                    } 
+                    // Try to resolve as a character property
+                    else if (expr.includes('.')) {
+                        const parts = expr.split('.');
+                        const targetName = parts[0];
+                        const target = resolveTargetCharacter(targetName, subject, allChars, variables);
+                        
+                        if (target) {
+                            if (parts[1] === '属性' && parts[2]) {
+                                const attrName = parts[2] as keyof typeof target.通用属性 | keyof typeof target.竞赛属性;
+                                const val = target.通用属性[attrName as keyof typeof target.通用属性] ?? target.竞赛属性[attrName as keyof typeof target.竞赛属性];
+                                output = `[属性] ${target.名称}.${parts[2]} = ${val}`;
+                            } else if (parts[1] === '关系' && parts[2] && parts[3]) {
+                                const relTargetName = parts[2];
+                                const relType = parts[3] as '友情' | '爱情';
+                                const relTarget = resolveTargetCharacter(relTargetName, subject, allChars, variables);
+                                if (relTarget) {
+                                    const rel = target.关系列表[relTarget.instanceId]?.[relType] || 0;
+                                    output = `[关系] ${target.名称} -> ${relTarget.名称} (${relType}) = ${rel}`;
+                                } else {
+                                    output = `[错误] 未找到关系目标: ${relTargetName}`;
+                                }
+                            } else if (parts[1] === '标签组' && parts[2]) {
+                                const tagId = parts[2].replace(/[()]/g, '');
+                                const tag = target.标签组.find(t => t.templateId === tagId);
+                                if (parts[3] === '层数') {
+                                    output = `[标签] ${target.名称}.${tagId}(层数) = ${tag ? tag.层数 : 0}`;
+                                } else {
+                                    output = `[标签] ${target.名称}.${tagId} = ${tag ? '存在' : '不存在'}`;
+                                }
+                            } else {
+                                const val = target[parts[1] as keyof typeof target];
+                                output = `[字段] ${target.名称}.${parts[1]} = ${val}`;
+                            }
+                        } else {
+                            output = `[错误] 未找到目标角色: ${targetName}`;
+                        }
+                    } else {
+                        // Just print the raw string if it's not a recognizable expression
+                        output = `[输出] ${expr}`;
+                    }
+                    
+                    if (output) {
+                        result.printOutputs.push(output);
+                        if (!isSilent) console.log(`[DSL 打印] ${output}`);
                     }
                 }
                 break;

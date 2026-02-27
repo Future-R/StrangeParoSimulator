@@ -40,6 +40,10 @@ const DSL_DOCS = [
                 content: "跳转：`跳转 [事件ID]`\n继续：`继续 [事件ID]` (带暂停)\n概率跳转：`概率跳转 [概率0-100] [事件ID]`\n角色入队：`让角色入队([目标])`"
             },
             {
+                title: "调试指令",
+                content: "打印：`打印([表达式])`\n表达式支持：\n- 变量：`变量.[变量名]`\n- 属性：`[对象].属性.[属性名]`\n- 关系：`[对象].关系.[目标].[友情/爱情]`\n- 标签：`[对象].标签组([标签ID])`\n例如：`打印(变量.测试)`, `打印(特别周.关系.训练员.爱情)`"
+            },
+            {
                 title: "变量操作",
                 content: "设置：`设置变量 [变量名] = [表达式]`\n计算：`变量计算 [变量名] [+/-] [数值]`\n表达式支持：\n- `获取随机队友()`\n- `获取随机全员角色()`\n- `获取角色(非队友)`\n- `列表随机取值(变量.列表)`\n- `随机(1~100)`"
             }
@@ -62,7 +66,7 @@ const DSL_DOCS = [
             },
             {
                 title: "关系检查",
-                content: "语法：`[源.]关系.[目标].友情/爱情 [比较符] [数值]`\n例如：`关系.玩家.爱情 > 50`, `关系.东海帝王.友情 >= 20`"
+                content: "语法：`[源.]关系.[目标].[友情/爱情] [比较符] [数值]`\n注意：关系是单向的，存储在发出情感的一方。\n- `关系.东海帝王.爱情 > 50`：表示【当前触发事件的角色】对【东海帝王】的爱情大于50。\n- `东海帝王.关系.玩家.爱情 > 50`：表示【东海帝王】对【玩家(训练员)】的爱情大于50。\n- 目标可以是：角色名、`玩家`、`训练员`、`变量.X`等。"
             }
         ]
     }
@@ -71,7 +75,7 @@ const DSL_DOCS = [
 interface DevConsoleProps {
   isOpen: boolean;
   onClose: () => void;
-  onExecute: (command: string) => void;
+  onExecute: (command: string) => string[];
 }
 
 export const DevConsole: React.FC<DevConsoleProps> = ({ isOpen, onClose, onExecute }) => {
@@ -84,8 +88,14 @@ export const DevConsole: React.FC<DevConsoleProps> = ({ isOpen, onClose, onExecu
 
   const handleRun = () => {
     if (!input.trim()) return;
-    onExecute(input);
-    setHistory(prev => [`> ${input}`, ...prev].slice(0, 20));
+    const outputs = onExecute(input);
+    setHistory(prev => {
+        const newHistory = [`> ${input}`, ...prev];
+        if (outputs && outputs.length > 0) {
+            outputs.forEach(out => newHistory.unshift(out));
+        }
+        return newHistory.slice(0, 50);
+    });
     setInput('');
   };
 

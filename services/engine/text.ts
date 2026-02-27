@@ -171,6 +171,22 @@ export const parseText = (text: string, char: RuntimeCharacter, turn: number, al
                         if (!replacement) replacement = '训练员';
                     }
                     else if (prop === '性别') replacement = subject.性别;
+                    else if (prop.startsWith('关系.')) {
+                        const relParts = prop.split('.');
+                        const objectKey = relParts[1];
+                        const type = relParts[2] as '友情' | '爱情';
+                        const objectChar = resolveTargetCharacter(objectKey, subject, allChars, variables);
+                        if (objectChar) {
+                            const rel = subject.关系列表[objectChar.instanceId] || { 友情: 0, 爱情: 0 };
+                            replacement = String(rel[type] || 0);
+                        }
+                    }
+                    else if (prop.startsWith('属性.')) {
+                        const attr = prop.replace('属性.', '');
+                        // @ts-ignore
+                        const val = subject.通用属性[attr] ?? subject.竞赛属性[attr];
+                        if (val !== undefined) replacement = String(val);
+                    }
                     // Fallback: if we couldn't resolve, keep the original text or empty?
                     // If it was meant to be text like {Unknown}, let's return empty to hide implementation details
                 }

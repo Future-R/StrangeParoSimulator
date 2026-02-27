@@ -160,7 +160,7 @@ export const checkCondition = (condition: string, char: RuntimeCharacter, turn: 
 
     // New: Check Tag Layers (Must be checked before '标签组 存在')
     // Syntax: 标签组(TagID).层数 >= 5
-    if (propPath.includes('标签组(') || propPath.includes('标签组 (')) {
+    if (propPath.includes('标签组') && propPath.includes('.层数')) {
         const match = propPath.match(/标签组\s*\(\s*([^)]+)\s*\)\.([\w\u4e00-\u9fa5]+)\s*([>=<]+|==)\s*(\d+)/);
         if (match) {
             const tagId = match[1].trim().replace(/['"]/g, ''); // Remove quotes if present
@@ -194,7 +194,12 @@ export const checkCondition = (condition: string, char: RuntimeCharacter, turn: 
     }
 
     if (cond.startsWith('随机')) {
-      const match = cond.match(/随机\(\s*([^,~\)]+)\s*[,~]\s*([^,~\)]+)\s*\)\s*([>=<]+|==)\s*(.+)/);
+      // Support '标签组(X).层数' inside random args which contains parens
+      // Updated regex to be more robust for spaces and optional target prefixes
+      const argPattern = '(?:(?:[^,]+\\.)?标签组\\s*\\([^)]+\\)\\s*\\.层数|[^,~\\)]+)';
+      const regex = new RegExp(`随机\\(\\s*(${argPattern})\\s*[,~]\\s*(${argPattern})\\s*\\)\\s*([>=<]+|==)\\s*(.+)`);
+      
+      const match = cond.match(regex);
       if (match) {
         // Pass 'subject' to allow relative properties in ranges (e.g. 随机(1, 属性.体质))
         const min = evalValue(match[1].trim(), variables, subject, allChars);
@@ -260,16 +265,17 @@ export const checkCondition = (condition: string, char: RuntimeCharacter, turn: 
     }
 
     if (propPath.includes('关系.')) {
-        // Changed regex to capture complex target names including dots (like '变量.队长')
-        const match = propPath.match(/关系\.([^\.]+)\.([\w\u4e00-\u9fa5]+)\s*([>=<]+|==)\s*(\d+)/);
+        // Changed regex to capture target names like '变量.队长' or '东海帝王'
+        // Updated to allow evalValue-compatible expressions on the right side
+        const match = propPath.match(/关系\.((?:变量\.)?[^\.]+)\.([\w\u4e00-\u9fa5]+)\s*([>=<]+|==)\s*(.+)/);
         if (match) {
             const targetName = match[1];
             const type = match[2] as '友情' | '爱情';
             const op = match[3];
-            const val = parseInt(match[4]);
+            const val = evalValue(match[4].trim(), variables, subject, allChars);
             
             let targetId = 'p1'; 
-            if (targetName === '玩家') {
+            if (targetName === '玩家' || targetName === '训练员') {
                 targetId = 'p1';
             } else {
                 const targetChar = resolveTargetCharacter(targetName, char, allChars, variables);
