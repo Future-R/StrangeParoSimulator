@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TS 游戏数据编辑器中心</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #1e1e1e;
+            color: #cccccc;
+            font-family: 'Microsoft YaHei', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .card {
+            background-color: #252526;
+            border: 1px solid #454545;
+            border-radius: 8px;
+            padding: 24px;
+            width: 300px;
+            text-align: center;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            border-color: #0e639c;
+        }
+        .card i {
+            font-size: 3rem;
+            color: #0e639c;
+        }
+        .card h2 {
+            margin: 0;
+            font-size: 1.2rem;
+            color: #ffffff;
+        }
+        .card p {
+            margin: 0;
+            font-size: 0.9rem;
+            color: #888888;
+        }
+    </style>
+</head>
+<body>
+    <div class="flex gap-8">
+        <a href="event-editor.html" class="card">
+            <i class="fas fa-calendar-alt text-[#4fc1ff]"></i>
+            <h2>事件编辑器</h2>
+            <p>编辑游戏事件、选项和分支逻辑</p>
+        </a>
+        <a href="character-editor.html" class="card">
+            <i class="fas fa-user-edit text-[#ce9178]"></i>
+            <h2>角色编辑器</h2>
+            <p>编辑角色属性、适性和初始标签</p>
+        </a>
+        <a href="tag-editor.html" class="card">
+            <i class="fas fa-tags text-[#3fb950]"></i>
+            <h2>特性编辑器</h2>
+            <p>编辑游戏特性、标签和互斥关系</p>
+        </a>
+    </div>
+</body>
+</html>

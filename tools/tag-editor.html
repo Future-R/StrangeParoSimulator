@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TS 特性编辑器 v1.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #1e1e1e;
+            --sidebar-bg: #252526;
+            --item-bg: #333333;
+            --item-hover: #2a2d2e;
+            --text-color: #cccccc;
+            --accent-color: #0e639c;
+            --success-color: #3fb950;
+            --border-color: #454545;
+            --input-bg: #3c3c3c;
+            --input-fg: #cccccc;
+            
+            --syntax-id: #4fc1ff;
+            --syntax-string: #ce9178;
+        }
+
+        body { 
+            background-color: var(--bg-color); 
+            color: var(--text-color); 
+            font-family: 'Microsoft YaHei', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 0; 
+            overflow: hidden; 
+        }
+
+        /* --- Custom Scrollbar --- */
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-track { background: var(--bg-color); }
+        ::-webkit-scrollbar-thumb { background: #424242; }
+        ::-webkit-scrollbar-thumb:hover { background: #4f4f4f; }
+        ::-webkit-scrollbar-corner { background: var(--bg-color); }
+
+        /* --- Components --- */
+        .sidebar { background-color: var(--sidebar-bg); border-right: 1px solid var(--border-color); }
+        
+        .list-item {
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+        .list-item:hover { background-color: var(--item-hover); }
+        .list-item.active { 
+            background-color: #37373d; 
+            color: white; 
+            border-left: 3px solid var(--accent-color);
+        }
+
+        .tag-item {
+            background-color: var(--bg-color);
+            border-bottom: 1px solid #2d2d2d;
+        }
+        .tag-item:hover { background-color: var(--item-hover); }
+        .tag-item.active { 
+            background-color: #2a2d2e; 
+            border-left: 3px solid var(--accent-color);
+        }
+
+        /* Form Controls */
+        label { 
+            display: block; 
+            margin-bottom: 4px; 
+            color: #999; 
+            font-size: 0.85rem; 
+            font-weight: 600;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 6px 8px;
+            background-color: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: var(--input-fg);
+            border-radius: 2px;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.1s;
+        }
+        .form-control:focus {
+            border-color: var(--accent-color);
+        }
+        
+        textarea.form-control {
+            line-height: 1.4;
+            min-height: 80px;
+        }
+
+        /* Syntax Highlighting Utilities */
+        .text-id { color: var(--syntax-id) !important; font-family: Consolas, monospace; }
+
+        /* Buttons */
+        .btn {
+            padding: 4px 12px;
+            border-radius: 2px;
+            font-size: 0.85rem; 
+            cursor: pointer;
+            border: none;
+            color: white;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-primary { background-color: var(--accent-color); }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-success { background-color: var(--success-color); }
+        .btn-success:hover { opacity: 0.9; }
+        .btn-danger { background-color: #a12626; }
+        .btn-danger:hover { opacity: 0.9; }
+        .btn-icon { background: transparent; color: #aaa; padding: 4px; }
+        .btn-icon:hover { color: white; background-color: rgba(255,255,255,0.1); }
+        
+        .btn-text {
+            background: transparent;
+            color: #aaa;
+            padding: 2px 8px;
+            border: 1px solid #444;
+            border-radius: 3px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-text:hover {
+            color: white;
+            background-color: rgba(255,255,255,0.1);
+            border-color: #666;
+        }
+        
+        /* Checkbox */
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+        .checkbox-wrapper input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--accent-color);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo, useRef } = React;
+
+        // --- Core Logic (Robust Parsing) ---
+        const parseTSContent = (content) => {
+            try {
+                const importMatch = content.match(/([\s\S]*?)export const/);
+                const imports = importMatch ? importMatch[1] : "import { TagTemplate } from '../../types';";
+
+                const varMatch = content.match(/export const\s+(\w+)\s*:\s*Record<string,\s*TagTemplate>\s*=\s*\{/);
+                const varName = varMatch ? varMatch[1] : 'TAGS';
+
+                const startIdx = content.indexOf('{', varMatch ? varMatch.index : 0);
+                const endIdx = content.lastIndexOf('}');
+                
+                if (startIdx === -1 || endIdx === -1) throw new Error("无法解析对象结构");
+
+                const objStr = content.substring(startIdx, endIdx + 1);
+                const tagsObj = new Function(`return ${objStr}`)();
+                const tags = Object.values(tagsObj);
+
+                return { imports, varName, tags };
+            } catch (e) {
+                console.error(e);
+                return null;
+            }
+        };
+
+        const toTSString = (obj, indentLevel = 0) => {
+            const indent = '  '.repeat(indentLevel);
+            const childIndent = '  '.repeat(indentLevel + 1);
+
+            if (Array.isArray(obj)) {
+                if (obj.length === 0) return '[]';
+                const items = obj.map(item => toTSString(item, indentLevel + 1)).join(',\n' + childIndent);
+                return `[\n${childIndent}${items}\n${indent}]`;
+            } else if (typeof obj === 'object' && obj !== null) {
+                const entries = Object.entries(obj).filter(([k,v]) => v !== undefined && v !== null);
+                if (entries.length === 0) return '{}';
+                
+                const lines = entries.map(([key, value]) => {
+                    // Allow Chinese characters and standard identifiers without quotes
+                    const safeKey = /^[\w\u4e00-\u9fa5]+$/.test(key) ? key : `'${key}'`;
+                    return `${safeKey}: ${toTSString(value, indentLevel + 1)}`;
+                });
+                return `{\n${childIndent}${lines.join(',\n' + childIndent)}\n${indent}}`;
+            } else if (typeof obj === 'string') {
+                const cleanStr = obj.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, "\\n");
+                return `'${cleanStr}'`;
+            } else {
+                return String(obj);
+            }
+        };
+
+        const generateFileContent = (fileData) => {
+            const tagsObj = {};
+            fileData.tags.forEach(t => tagsObj[t.id] = t);
+            const tagsTS = toTSString(tagsObj, 1);
+            return `${fileData.imports.trim()}\n\nexport const ${fileData.varName}: Record<string, TagTemplate> = ${tagsTS};\n`;
+        };
+
+        // --- App Component ---
+        const App = () => {
+            const [files, setFiles] = useState([]);
+            const [activeFileIndex, setActiveFileIndex] = useState(-1);
+            const [activeTagIndex, setActiveTagIndex] = useState(-1);
+            const [filter, setFilter] = useState('');
+            
+            const [editingFileIndex, setEditingFileIndex] = useState(-1);
+            const [editName, setEditName] = useState('');
+            
+            const fileInputRef = useRef(null);
+
+            const activeFile = activeFileIndex >= 0 ? files[activeFileIndex] : null;
+            const activeTag = (activeFile && activeTagIndex >= 0) ? activeFile.tags[activeTagIndex] : null;
+
+            // --- File Handlers ---
+            const handleFileUpload = (e) => {
+                const uploadedFiles = Array.from(e.target.files);
+                uploadedFiles.forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        const content = ev.target.result;
+                        const result = parseTSContent(content);
+                        if (result) {
+                            setFiles(prev => {
+                                const idx = prev.findIndex(f => f.name === file.name);
+                                if (idx !== -1) {
+                                    const next = [...prev];
+                                    next[idx] = { name: file.name, ...result };
+                                    return next;
+                                }
+                                return [...prev, { name: file.name, ...result }];
+                            });
+                            if (activeFileIndex === -1) setActiveFileIndex(0); 
+                        } else {
+                            alert(`解析 ${file.name} 失败`);
+                        }
+                    };
+                    reader.readAsText(file);
+                });
+                e.target.value = null; 
+            };
+
+            const handleNewFile = () => {
+                const newFile = {
+                    name: `new_tags_${files.length + 1}.ts`,
+                    imports: "import { TagTemplate } from '../../types';",
+                    varName: 'NEW_TAGS',
+                    tags: []
+                };
+                setFiles(prev => [...prev, newFile]);
+                setTimeout(() => setActiveFileIndex(files.length), 0);
+                setActiveTagIndex(-1);
+            };
+
+            const handleSave = (index) => {
+                const file = files[index];
+                const cleanedTags = file.tags.map(tag => ({
+                    ...tag,
+                    互斥标签: (tag.互斥标签 || []).filter(Boolean)
+                }));
+                const content = generateFileContent({ ...file, tags: cleanedTags });
+                const blob = new Blob([content], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = file.name;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            };
+
+            // --- Rename Handlers ---
+            const startRename = (index, currentName, e) => {
+                e.stopPropagation();
+                setEditingFileIndex(index);
+                setEditName(currentName.replace(/\.ts$/i, ''));
+            };
+
+            const saveRename = () => {
+                if (editingFileIndex === -1) return;
+                const newName = editName.trim();
+                if (newName) {
+                    setFiles(prev => {
+                        const next = [...prev];
+                        const finalName = newName.endsWith('.ts') ? newName : newName + '.ts';
+                        next[editingFileIndex].name = finalName;
+                        return next;
+                    });
+                }
+                setEditingFileIndex(-1);
+                setEditName('');
+            };
+
+            const cancelRename = () => {
+                setEditingFileIndex(-1);
+                setEditName('');
+            };
+
+            // --- Tag Handlers ---
+            const updateTag = (field, value) => {
+                if (!activeFile || !activeTag) return;
+                const newTags = [...activeFile.tags];
+                newTags[activeTagIndex] = { ...activeTag, [field]: value };
+                
+                const newFiles = [...files];
+                newFiles[activeFileIndex] = { ...activeFile, tags: newTags };
+                setFiles(newFiles);
+            };
+
+            const addTag = () => {
+                 if (!activeFile) return;
+                 const newTag = {
+                    id: 'new_tag_' + Date.now(),
+                    显示名: '新特性',
+                    描述: '',
+                    稀有度: 1,
+                    互斥标签: [],
+                    人类可用: true,
+                    马娘可用: true,
+                    开局可选: true,
+                    显示层数: false
+                };
+                const newTags = [...activeFile.tags, newTag];
+                const newFiles = [...files];
+                newFiles[activeFileIndex] = { ...activeFile, tags: newTags };
+                setFiles(newFiles);
+                setActiveTagIndex(newTags.length - 1);
+            };
+
+            const filteredTags = useMemo(() => {
+                if (!activeFile) return [];
+                if (!filter) return activeFile.tags.map((t, i) => ({...t, _idx: i}));
+                const lower = filter.toLowerCase();
+                return activeFile.tags
+                    .map((t, i) => ({...t, _idx: i}))
+                    .filter(t => 
+                        t.id.toLowerCase().includes(lower) || 
+                        (t.显示名 && t.显示名.toLowerCase().includes(lower)) ||
+                        (t.描述 && t.描述.toLowerCase().includes(lower))
+                    );
+            }, [activeFile, filter]);
+
+            return (
+                <div className="flex h-screen w-full">
+                    <input type="file" multiple accept=".ts" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+                    
+                    {/* --- Sidebar (Files) --- */}
+                    <div className="sidebar w-64 flex flex-col flex-shrink-0">
+                        <div className="p-3 border-b border-[#333] flex justify-between items-center">
+                            <span className="text-xs font-bold uppercase tracking-wider text-gray-500">资源管理器</span>
+                            <div className="flex gap-2">
+                                <button className="btn-text" style={{color: '#3fb950', borderColor: 'rgba(63, 185, 80, 0.4)'}} onClick={handleNewFile}>
+                                    新建
+                                </button>
+                                <button className="btn-text" style={{color: '#eebb00', borderColor: 'rgba(238, 187, 0, 0.4)'}} onClick={() => fileInputRef.current.click()}>
+                                    打开
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto">
+                            {files.map((f, idx) => (
+                                <div 
+                                    key={idx}
+                                    onClick={() => { setActiveFileIndex(idx); setActiveTagIndex(-1); }}
+                                    className={`list-item py-1.5 px-3 flex justify-between items-center group text-sm ${idx === activeFileIndex ? 'active' : ''}`}
+                                >
+                                    <span className="truncate flex items-center gap-2 flex-1 min-w-0">
+                                        <i className="fas fa-tags text-[#ce9178] text-xs flex-shrink-0"></i> 
+                                        {idx === editingFileIndex ? (
+                                            <input 
+                                                className="bg-[#111] text-white border border-accent-color px-1 py-0 w-full rounded focus:outline-none"
+                                                value={editName}
+                                                onChange={e => setEditName(e.target.value)}
+                                                onBlur={saveRename}
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter') saveRename();
+                                                    if (e.key === 'Escape') cancelRename();
+                                                }}
+                                                autoFocus
+                                                onClick={e => e.stopPropagation()}
+                                            />
+                                        ) : (
+                                            <span className="truncate" title={f.name}>{f.name.replace(/\.ts$/i, '')}</span>
+                                        )}
+                                    </span>
+                                    <div className="flex gap-1">
+                                        {idx !== editingFileIndex && (
+                                            <button 
+                                                onClick={(e) => startRename(idx, f.name, e)}
+                                                className="btn-icon opacity-0 group-hover:opacity-100 text-xs" 
+                                                title="重命名"
+                                            >
+                                                <i className="fas fa-pen"></i>
+                                            </button>
+                                        )}
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleSave(idx); }}
+                                            className="btn-icon opacity-0 group-hover:opacity-100" 
+                                            title="保存"
+                                        >
+                                            <i className="fas fa-save"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* --- Tag List --- */}
+                    <div className="w-80 border-r border-[#333] flex flex-col flex-shrink-0 bg-[#1e1e1e]">
+                        <div className="p-3 border-b border-[#333] flex gap-2">
+                            <input 
+                                className="form-control"
+                                placeholder="搜索特性..."
+                                value={filter}
+                                onChange={e => setFilter(e.target.value)}
+                            />
+                            <button className="btn btn-success" onClick={addTag}>+</button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto">
+                            {activeFile ? filteredTags.map((t, displayIndex) => (
+                                <div 
+                                    key={t.id}
+                                    onClick={() => setActiveTagIndex(t._idx)}
+                                    className={`tag-item p-2.5 cursor-pointer relative ${activeTagIndex === t._idx ? 'active' : ''}`}
+                                >
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex-1 min-w-0 mr-6">
+                                            <div className="font-bold text-sm text-[#e0e0e0] truncate mb-0.5">{t.显示名 || t.id}</div>
+                                            <div className="text-xs text-gray-500 truncate">{t.描述 || '无描述'}</div>
+                                        </div>
+                                        <span className="absolute top-2.5 right-2 text-[10px] text-gray-600 font-mono">#{displayIndex + 1}</span>
+                                    </div>
+                                </div>
+                            )) : (
+                                <div className="p-4 text-center text-gray-500 text-sm">请先打开文件</div>
+                            )}
+                        </div>
+                        {activeFile && <div className="p-2 text-center text-xs text-gray-600 border-t border-[#333]">
+                            共 {filteredTags.length} 个特性
+                        </div>}
+                    </div>
+
+                    {/* --- Editor --- */}
+                    <div className="flex-1 overflow-y-auto p-6 bg-[#1e1e1e]">
+                        {activeTag ? (
+                            <div className="max-w-3xl mx-auto pb-20">
+                                {/* Header */}
+                                <div className="flex justify-between items-start mb-6 border-b border-[#333] pb-4">
+                                    <div className="flex items-center gap-3">
+                                        <i className="fas fa-tag text-accent-color text-xl"></i>
+                                        <h2 className="text-xl font-bold text-white tracking-tight">{activeTag.id}</h2>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button 
+                                            className="btn btn-danger"
+                                            onClick={() => {
+                                                if(confirm('确定删除吗？')) {
+                                                    const newTags = activeFile.tags.filter((_, i) => i !== activeTagIndex);
+                                                    const newFiles = [...files];
+                                                    newFiles[activeFileIndex] = { ...activeFile, tags: newTags };
+                                                    setFiles(newFiles);
+                                                    setActiveTagIndex(-1);
+                                                }
+                                            }}
+                                        >
+                                            删除特性
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Form Grid */}
+                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <label>ID</label>
+                                        <input 
+                                            className="form-control text-id font-bold" 
+                                            value={activeTag.id} 
+                                            onChange={e => updateTag('id', e.target.value)} 
+                                        />
+                                    </div>
+                                    <div>
+                                        <label>显示名</label>
+                                        <input 
+                                            className="form-control font-bold" 
+                                            value={activeTag.显示名 || ''} 
+                                            onChange={e => updateTag('显示名', e.target.value)} 
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="mb-4">
+                                    <label>描述</label>
+                                    <textarea 
+                                        className="form-control" 
+                                        value={activeTag.描述 || ''} 
+                                        onChange={e => updateTag('描述', e.target.value)} 
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <label>稀有度 (数值越高越稀有)</label>
+                                        <input 
+                                            type="number" 
+                                            className="form-control" 
+                                            value={activeTag.稀有度} 
+                                            onChange={e => updateTag('稀有度', parseInt(e.target.value)||0)} 
+                                        />
+                                    </div>
+                                    <div>
+                                        <label>互斥标签 (逗号分隔)</label>
+                                        <input 
+                                            className="form-control"
+                                            value={(activeTag.互斥标签 || []).join(', ')} 
+                                            onChange={e => updateTag('互斥标签', e.target.value.split(/[,，]/).map(s=>s.trim()))} 
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4 mb-4 p-4 border border-[#454545] rounded bg-[#252526]">
+                                    <label className="checkbox-wrapper">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={activeTag.人类可用} 
+                                            onChange={e => updateTag('人类可用', e.target.checked)} 
+                                        />
+                                        <span className="text-[#ccc]">人类可用</span>
+                                    </label>
+                                    <label className="checkbox-wrapper">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={activeTag.马娘可用} 
+                                            onChange={e => updateTag('马娘可用', e.target.checked)} 
+                                        />
+                                        <span className="text-[#ccc]">马娘可用</span>
+                                    </label>
+                                    <label className="checkbox-wrapper">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={activeTag.开局可选} 
+                                            onChange={e => updateTag('开局可选', e.target.checked)} 
+                                        />
+                                        <span className="text-[#ccc]">开局可选</span>
+                                    </label>
+                                    <label className="checkbox-wrapper">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={activeTag.显示层数} 
+                                            onChange={e => updateTag('显示层数', e.target.checked)} 
+                                        />
+                                        <span className="text-[#ccc]">显示层数 (在UI中显示堆叠层数)</span>
+                                    </label>
+                                </div>
+
+                            </div>
+                        ) : (
+                            <div className="flex items-center justify-center h-full text-gray-500">
+                                <div className="text-center">
+                                    <i className="fas fa-tag text-4xl mb-4 opacity-50"></i>
+                                    <p>在左侧选择一个特性进行编辑</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
