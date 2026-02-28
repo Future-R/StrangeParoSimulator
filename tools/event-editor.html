@@ -278,6 +278,10 @@
                     {
                         title: "列表/集合操作",
                         content: "筛选：`列表筛选([变量名], [条件])`\n排除：`列表排除([变量名], [目标角色])`\n截取：`列表截取([变量名], [数量])`\n排序：`列表排序([变量名], [属性路径/关系路径], [asc/desc])`\n执行：`列表执行([变量名], [指令])`\n添加：`列表添加([变量名], [目标])`"
+                    },
+                    {
+                        title: "调试指令",
+                        content: "打印：`打印 [内容]` 或 `打印([内容])`\n支持打印变量、属性、关系、标签等。\n例如：`打印(变量.测试)`, `打印(关系.特别周.爱情)`, `打印(当前角色.属性.体力)`"
                     }
                 ]
             },
@@ -298,7 +302,7 @@
                     },
                     {
                         title: "关系检查",
-                        content: "语法：`[源.]关系.[目标].友情/爱情 [比较符] [数值]`\n例如：`关系.玩家.爱情 > 50`, `关系.东海帝王.友情 >= 20`"
+                        content: "语法：`关系.[目标].[友情/爱情] [比较符] [数值]`\n例如：`关系.玩家.爱情 > 50`, `关系.东海帝王.友情 >= 20`"
                     },
                     {
                         title: "环境/全局",
@@ -311,7 +315,7 @@
                 items: [
                     {
                         title: "变量插入",
-                        content: "`{当前角色.名称}`\n`{训练员.称呼}`\n`{变量.自定义变量名}`"
+                        content: "`{当前角色.名称}`\n`{训练员.称呼}`\n`{变量.自定义变量名}`\n`{角色.关系.对象.类型}` (例如：`{当前角色.关系.玩家.爱情}`)"
                     },
                     {
                         title: "随机文本",
@@ -510,6 +514,35 @@
                 URL.revokeObjectURL(url);
             };
 
+            const handleExportText = (index) => {
+                const file = files[index];
+                let textContent = `=== ${file.name} 纯文本导出 ===\n\n`;
+                
+                file.events.forEach(ev => {
+                    textContent += `【ID】: ${ev.id}\n`;
+                    textContent += `【标题】: ${ev.标题 || '无标题'}\n`;
+                    textContent += `【正文】:\n${ev.正文 || ''}\n`;
+                    
+                    if (ev.选项组 && ev.选项组.length > 0) {
+                        textContent += `【选项】:\n`;
+                        ev.选项组.forEach((opt, i) => {
+                            textContent += `  ${i + 1}. ${opt.显示文本 || ''}\n`;
+                        });
+                    }
+                    textContent += `\n----------------------------------------\n\n`;
+                });
+
+                const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = file.name.replace(/\.ts$/i, '.txt');
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            };
+
             // --- Rename Handlers ---
             const startRename = (index, currentName, e) => {
                 e.stopPropagation();
@@ -650,6 +683,13 @@
                                                 <i className="fas fa-pen"></i>
                                             </button>
                                         )}
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleExportText(idx); }}
+                                            className="btn-icon opacity-0 group-hover:opacity-100" 
+                                            title="导出纯文本"
+                                        >
+                                            <i className="fas fa-file-alt"></i>
+                                        </button>
                                         <button 
                                             onClick={(e) => { e.stopPropagation(); handleSave(idx); }}
                                             className="btn-icon opacity-0 group-hover:opacity-100" 
