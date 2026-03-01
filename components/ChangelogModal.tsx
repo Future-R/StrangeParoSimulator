@@ -7,6 +7,15 @@ interface ChangelogModalProps {
 
 const CHANGELOG_DATA = [
   {
+    version: '0.2.260301a',
+    date: '2026-03-01',
+    changes: [
+      '新增：特别周作为初始马娘。',
+      '新增：Genesis撰写的13个特别周事件。',
+      '调整：部分文案细节。',
+    ]
+  },
+  {
     version: '0.2.260228a',
     date: '2026-02-28',
     changes: [

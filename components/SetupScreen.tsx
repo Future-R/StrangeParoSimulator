@@ -537,7 +537,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
         onClick={() => setIsChangelogOpen(true)}
         className="mt-6 text-gray-500 text-sm font-bold tracking-wider hover:text-[#66D814] transition-colors drop-shadow-sm"
       >
-        v0.2.260228a
+        v0.2.260301a
       </button>
 
       {/* Changelog Modal */}
