@@ -135,8 +135,7 @@
                 if (entries.length === 0) return '{}';
                 
                 const lines = entries.map(([key, value]) => {
-                    // Allow Chinese characters and standard identifiers without quotes
-                    const safeKey = /^[\w\u4e00-\u9fa5]+$/.test(key) ? key : `'${key}'`;
+                    const safeKey = /^[\w\u4e00-\u9fa5$][\w\u4e00-\u9fa5$0-9]*$/.test(key) ? key : `'${key}'`;
                     return `${safeKey}: ${toTSString(value, indentLevel + 1)}`;
                 });
                 return `{\n${childIndent}${lines.join(',\n' + childIndent)}\n${indent}}`;
