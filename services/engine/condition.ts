@@ -2,6 +2,7 @@
 import { RuntimeCharacter } from '../../types';
 import { getTurnInfo, evalValue } from './utils';
 import { resolveTargetCharacter } from './character';
+import { EVENTS } from '../../data/events';
 
 export const checkCondition = (condition: string, char: RuntimeCharacter, turn: number, choiceIndex?: number, allChars: RuntimeCharacter[] = [], variables?: Record<string, any>): boolean => {
   if (!condition || condition.trim() === '') return true;
@@ -226,6 +227,54 @@ export const checkCondition = (condition: string, char: RuntimeCharacter, turn: 
             const op = match[2];
             const val = parseInt(match[3]);
             const count = subject.已触发事件[eventId] || 0;
+            switch (op) {
+                case '>': return count > val;
+                case '>=': return count >= val;
+                case '<': return count < val;
+                case '<=': return count <= val;
+                case '==': return count === val;
+            }
+        }
+    }
+
+    if (cond.includes('全局事件标签触发次数')) {
+        const match = cond.match(/全局事件标签触发次数\s*\(\s*([^)]+)\s*\)\s*([>=<]+|==)\s*(.+)/);
+        if (match) {
+            const tagId = match[1].trim().replace(/['"]/g, '');
+            const op = match[2];
+            const val = evalValue(match[3].trim(), variables, subject, allChars);
+            let count = 0;
+            for (const c of allChars) {
+                for (const [eventId, times] of Object.entries(c.已触发事件)) {
+                    const event = EVENTS.find(e => e.id === eventId);
+                    if (event && event.标签组 && event.标签组.includes(tagId)) {
+                        count += times;
+                    }
+                }
+            }
+            switch (op) {
+                case '>': return count > val;
+                case '>=': return count >= val;
+                case '<': return count < val;
+                case '<=': return count <= val;
+                case '==': return count === val;
+            }
+        }
+    }
+
+    if (propPath.includes('事件标签触发次数')) {
+        const match = propPath.match(/事件标签触发次数\s*\(\s*([^)]+)\s*\)\s*([>=<]+|==)\s*(.+)/);
+        if (match) {
+            const tagId = match[1].trim().replace(/['"]/g, '');
+            const op = match[2];
+            const val = evalValue(match[3].trim(), variables, subject, allChars);
+            let count = 0;
+            for (const [eventId, times] of Object.entries(subject.已触发事件)) {
+                const event = EVENTS.find(e => e.id === eventId);
+                if (event && event.标签组 && event.标签组.includes(tagId)) {
+                    count += times;
+                }
+            }
             switch (op) {
                 case '>': return count > val;
                 case '>=': return count >= val;

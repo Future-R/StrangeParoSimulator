@@ -1,6 +1,7 @@
 
 import { RuntimeCharacter } from '../../types';
 import { resolveTargetCharacter } from './character';
+import { EVENTS } from '../../data/events';
 
 export const getTurnInfo = (turn: number) => {
   const adjustedTurn = Math.max(0, turn - 1);
@@ -133,6 +134,51 @@ export const evalValue = (valStr: string, variables?: Record<string, any>, subje
                     const rel = subjectChar.关系列表[objectChar.instanceId] || { 友情: 0, 爱情: 0 };
                     return rel[type] || 0;
                 }
+            }
+            return 0;
+        }
+    }
+
+    // 2.7 Event Tag Trigger Count: 全局事件标签触发次数(TagID)
+    if (str.includes('全局事件标签触发次数')) {
+        const match = str.match(/全局事件标签触发次数\s*\(\s*([^)]+)\s*\)/);
+        if (match && allChars) {
+            const tagId = match[1].trim().replace(/['"]/g, '');
+            let count = 0;
+            for (const c of allChars) {
+                for (const [eventId, times] of Object.entries(c.已触发事件)) {
+                    const event = EVENTS.find(e => e.id === eventId);
+                    if (event && event.标签组 && event.标签组.includes(tagId)) {
+                        count += times;
+                    }
+                }
+            }
+            return count;
+        }
+    }
+
+    // 2.8 Event Tag Trigger Count (Character): [Target.]事件标签触发次数(TagID)
+    if (str.includes('事件标签触发次数')) {
+        const match = str.match(/(?:(.+)\.)?事件标签触发次数\s*\(\s*([^)]+)\s*\)/);
+        if (match) {
+            const targetKey = match[1];
+            const tagId = match[2].trim().replace(/['"]/g, '');
+            
+            let targetChar = subject;
+            if (targetKey && allChars) {
+                const resolved = resolveTargetCharacter(targetKey, subject || allChars[0], allChars, variables);
+                if (resolved) targetChar = resolved;
+            }
+
+            if (targetChar) {
+                let count = 0;
+                for (const [eventId, times] of Object.entries(targetChar.已触发事件)) {
+                    const event = EVENTS.find(e => e.id === eventId);
+                    if (event && event.标签组 && event.标签组.includes(tagId)) {
+                        count += times;
+                    }
+                }
+                return count;
             }
             return 0;
         }
