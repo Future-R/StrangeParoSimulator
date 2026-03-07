@@ -351,6 +351,23 @@ export const executeAction = (
                  }
                  break;
             }
+            case '列表打乱': {
+                 const fullCmd = actionParts.join(' ');
+                 const match = fullCmd.match(/列表打乱\(([^)]+)\)/);
+                 if (match) {
+                     const listKey = match[1].trim();
+                     if (Array.isArray(variables[listKey])) {
+                         const freshList = refreshList(variables[listKey], allChars);
+                         // Fisher-Yates shuffle
+                         for (let i = freshList.length - 1; i > 0; i--) {
+                             const j = Math.floor(Math.random() * (i + 1));
+                             [freshList[i], freshList[j]] = [freshList[j], freshList[i]];
+                         }
+                         variables[listKey] = freshList;
+                     }
+                 }
+                 break;
+            }
             case '列表添加': {
                  const fullCmd = actionParts.join(' ');
                  const match = fullCmd.match(/列表添加\(([^,]+),\s*(.+)\)/);
