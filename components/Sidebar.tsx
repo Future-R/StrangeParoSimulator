@@ -86,7 +86,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ characters, onTagClick }) => {
         <h2 className="font-bold text-gray-700 text-center tracking-wide text-lg">队伍编成</h2>
       </div>
       
-      <div className="p-4 space-y-6 flex-1">
+      <div className="p-4 space-y-6 flex-1 overflow-y-auto">
         {displayCharacters.map((char) => {
             const isTrainer = char.标签组.some(t => t.templateId === '训练员');
             const hasUmaTag = char.标签组.some(t => t.templateId === '马娘');
