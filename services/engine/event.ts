@@ -382,6 +382,11 @@ export const processEvent = (
         }
     }
 
+    // Check Game Over
+    if (event.标签组?.includes('结局')) {
+        newState.gamePhase = 'gameover';
+    }
+
     return newState;
 };
 

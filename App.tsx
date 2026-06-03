@@ -330,6 +330,14 @@ function App() {
             // Max Turn Ending
             if (nextTurn > prev.maxTurns) {
                  newState.currentTurn = nextTurn;
+                 if (llmConfig.enabled && prev.characters[0]) {
+                     // Wait, prev.characters[0] might be the trainer. We can set it to the first non-trainer character or just the trainer if that's what's available
+                     const targetChar = prev.characters.find(c => !c.标签组.some(t => t.templateId === '训练员')) || prev.characters[0];
+                     newState.isLLMGenerating = true;
+                     newState.llmTargetId = targetChar.instanceId;
+                     newState.isLLMEnding = true;
+                     return newState;
+                 }
                  const endingEvent = ENDING_EVENTS.find(e => checkCondition(e.触发条件, prev.characters[0], nextTurn, undefined, prev.characters));
                  if (endingEvent) return triggerCharacterEvent(newState, 'p1', endingEvent);
                  return { ...prev, gamePhase: 'gameover', isAuto: false };
@@ -452,20 +460,33 @@ function App() {
     if (gameState.isLLMGenerating && gameState.llmTargetId && !gameState.llmGeneratedEvent) {
         const targetChar = gameState.characters.find(c => c.instanceId === gameState.llmTargetId);
         if (targetChar) {
-            generateLLMEvent(llmConfig, targetChar, gameState.logs).then(event => {
-                if (event) {
-                    setGameState(prev => ({ ...prev, llmGeneratedEvent: event }));
+            generateLLMEvent(llmConfig, targetChar, gameState.logs, gameState.llmOptionCounts, gameState.isLLMEnding).then(events => {
+                if (events && events.length > 0) {
+                    if (events.length > 1) {
+                        import('./constants').then(({ EVENTS }) => {
+                            // Ensure no duplicates in EVENTS
+                            const newEvents = events.slice(1).filter(e => !EVENTS.some(ev => ev.id === e.id));
+                            EVENTS.push(...newEvents);
+                        });
+                    }
+                    setGameState(prev => ({ ...prev, llmGeneratedEvent: events[0] }));
                 } else {
                     // Fallback to normal if LLM fails
                     setGameState(prev => {
                        const st = { ...prev, isLLMGenerating: false, llmTargetId: undefined };
+                       if (st.isLLMEnding) {
+                           st.isLLMEnding = false;
+                           const endingEvent = ENDING_EVENTS.find(e => checkCondition(e.触发条件, st.characters[0], st.currentTurn, undefined, st.characters));
+                           if (endingEvent) return triggerCharacterEvent(st, 'p1', endingEvent);
+                           return { ...st, gamePhase: 'gameover', isAuto: false };
+                       }
                        return triggerCharacterEvent(st, targetChar.instanceId);
                     });
                 }
             });
         }
     }
-  }, [gameState.isLLMGenerating, gameState.llmTargetId, gameState.llmGeneratedEvent, gameState.characters, gameState.logs, llmConfig]);
+  }, [gameState.isLLMGenerating, gameState.isLLMEnding, gameState.llmTargetId, gameState.llmGeneratedEvent, gameState.characters, gameState.logs, llmConfig]);
 
   if (gameState.gamePhase === 'setup') return <SetupScreen onComplete={handleSetupComplete} />;
 
@@ -614,6 +635,17 @@ function App() {
                 setGameState(prev => {
                     const st = { ...prev, isLLMGenerating: false };
                     st.llmGeneratedEvent = undefined;
+                    
+                    const optCount = editedEvent.选项组 ? editedEvent.选项组.length : 0;
+                    st.llmOptionCounts = { ...st.llmOptionCounts };
+                    st.llmOptionCounts[optCount] = (st.llmOptionCounts[optCount] || 0) + 1;
+
+                    if (st.isLLMEnding) {
+                        st.isLLMEnding = false;
+                        if (!editedEvent.标签组) editedEvent.标签组 = [];
+                        if (!editedEvent.标签组.includes('结局')) editedEvent.标签组.push('结局');
+                    }
+
                     return processEvent(st, editedEvent, st.llmTargetId!);
                 });
             }}
@@ -625,6 +657,12 @@ function App() {
                 if (!gameState.llmTargetId) return;
                 setGameState(prev => {
                     const st = { ...prev, isLLMGenerating: false, llmGeneratedEvent: undefined };
+                    if (st.isLLMEnding) {
+                        st.isLLMEnding = false;
+                        const endingEvent = ENDING_EVENTS.find(e => checkCondition(e.触发条件, st.characters[0], st.currentTurn, undefined, st.characters));
+                        if (endingEvent) return triggerCharacterEvent(st, 'p1', endingEvent);
+                        return { ...st, gamePhase: 'gameover', isAuto: false };
+                    }
                     return triggerCharacterEvent(st, st.llmTargetId!);
                 });
             }}

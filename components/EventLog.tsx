@@ -14,7 +14,7 @@ export const EventLog: React.FC<EventLogProps> = ({ logs }) => {
   }, [logs]);
 
   return (
-    <div className="flex-1 bg-gray-100 h-full overflow-y-auto p-4 md:p-6 pb-24 md:pb-32 w-full">
+    <div className="flex-1 bg-gray-100 min-h-[60vh] md:min-h-0 h-full overflow-y-auto p-4 md:p-6 pb-24 md:pb-32 w-full">
       <div className="max-w-3xl mx-auto space-y-6">
         {logs.map((log, idx) => {
             const isSystem = log.type === 'system';

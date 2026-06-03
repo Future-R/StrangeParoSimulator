@@ -177,6 +177,8 @@ export interface GameState {
   
   // LLM Support
   isLLMGenerating?: boolean;
+  isLLMEnding?: boolean;
   llmTargetId?: string;
   llmGeneratedEvent?: GameEvent; // Holds the preview event
+  llmOptionCounts?: Record<number, number>; // Tracks how many times events with N options were generated
 }
