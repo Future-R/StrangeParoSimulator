@@ -213,17 +213,19 @@ export const processEvent = (
     const hasOptions = Array.isArray(event.选项组) && event.选项组.length > 0;
     const isInteractive = hasOptions;
 
-    const char = currentState.characters.find(c => c.instanceId === characterId)!;
-    const isMultiplePersonality = char.标签组.some(t => t.templateId === '多重人格');
+    let newState = JSON.parse(JSON.stringify(currentState)) as GameState;
+    const newChar = newState.characters.find(c => c.instanceId === characterId)!;
+    
+    // Increment trigger count BEFORE processing actions
+    newChar.已触发事件[event.id] = (newChar.已触发事件[event.id] || 0) + 1;
+
+    const isMultiplePersonality = newChar.标签组.some(t => t.templateId === '多重人格');
 
     // --- Case 1: Interactive (Has Options) ---
     if (isInteractive) {
         // [Multiple Personality Logic - Interactive]
         // 50% chance to auto-choose randomly, suppress modal, and restore stats
         if (isMultiplePersonality && Math.random() < 0.5) {
-            let newState = JSON.parse(JSON.stringify(currentState)) as GameState;
-            const newChar = newState.characters.find(c => c.instanceId === characterId)!;
-            
             // Execute Pre-Action (Silent)
             let variables = { ...initialVariables };
             if (event.预操作指令) {
@@ -278,8 +280,6 @@ export const processEvent = (
         // Normal Interactive Flow
         let variables = { ...initialVariables };
         // Execute Pre-Action on a temp state for variable resolution in UI
-        const newState = JSON.parse(JSON.stringify(currentState)) as GameState;
-        const newChar = newState.characters.find(c => c.instanceId === characterId)!;
         
         if (event.预操作指令) {
              const res = executeAction(event.预操作指令, newChar, newState.currentTurn, newState.characters, variables, true, event.标签组);
@@ -300,8 +300,6 @@ export const processEvent = (
 
     // --- Case 2: Non-Interactive (Flavor/Auto) ---
     // Execute immediately and chain if needed.
-    let newState = JSON.parse(JSON.stringify(currentState)) as GameState;
-    const newChar = newState.characters.find(c => c.instanceId === characterId)!;
     const snapshotChars = JSON.parse(JSON.stringify(currentState.characters)) as RuntimeCharacter[];
     let variables = { ...initialVariables };
 
@@ -455,12 +453,5 @@ export const triggerCharacterEvent = (
 
     if (!eventToTrigger) return state;
 
-    const nextState = processEvent(state, eventToTrigger, characterId);
-    
-    const nextChar = nextState.characters.find(c => c.instanceId === characterId);
-    if (nextChar) {
-        nextChar.已触发事件[eventToTrigger.id] = (nextChar.已触发事件[eventToTrigger.id] || 0) + 1;
-    }
-
-    return nextState;
+    return processEvent(state, eventToTrigger, characterId);
 };

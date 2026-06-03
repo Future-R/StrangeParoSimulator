@@ -172,4 +172,9 @@ export interface GameState {
   chainedEvent?: ChainedEvent; // 新增：用于存储等待“继续”的事件
   isAuto: boolean;
   autoSpeed: number;
+  
+  // LLM Support
+  isLLMGenerating?: boolean;
+  llmTargetId?: string;
+  llmGeneratedEvent?: GameEvent; // Holds the preview event
 }

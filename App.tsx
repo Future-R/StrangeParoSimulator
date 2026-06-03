@@ -8,6 +8,9 @@ import { TagModal } from './components/TagModal';
 import { SetupScreen } from './components/SetupScreen';
 import { MobileCharacterList } from './components/MobileCharacterList';
 import { DevConsole } from './components/DevConsole';
+import { LLMConfigPanel, LLMConfig } from './components/LLMConfigPanel';
+import { LLMPreviewModal } from './components/LLMPreviewModal';
+import { generateLLMEvent } from './services/llm';
 import { GameState, RuntimeCharacter, TagTemplate, RuntimeTag } from './types';
 import { createRuntimeCharacter, triggerCharacterEvent, resolvePendingEvent, getTurnDate, checkCondition, getAvailableStartTags, executeAction, processEvent } from './services/engine';
 import { CHARACTERS, EVENTS, ENDING_EVENTS, TAGS } from './constants';
@@ -40,6 +43,28 @@ function App() {
   const [gameState, setGameState] = useState<GameState>(createInitialState());
   const [activeTagData, setActiveTagData] = useState<{ tag: TagTemplate, targetNames?: string[] } | null>(null);
   const [isDevConsoleOpen, setIsDevConsoleOpen] = useState(false);
+  const [showLLMConfig, setShowLLMConfig] = useState(false);
+  const [hiddenTriggerCount, setHiddenTriggerCount] = useState(0);
+  const [llmConfig, setLlmConfig] = useState<LLMConfig>(() => {
+      const stored = localStorage.getItem('llmConfig');
+      return stored ? JSON.parse(stored) : { enabled: false, url: '', key: '', model: '' };
+  });
+
+  const handleSaveLLMConfig = (config: LLMConfig) => {
+      setLlmConfig(config);
+      localStorage.setItem('llmConfig', JSON.stringify(config));
+  };
+  
+  const handleTurnCounterClick = () => {
+      setHiddenTriggerCount(prev => {
+          const next = prev + 1;
+          if (next >= 5) {
+              setShowLLMConfig(true);
+              return 0;
+          }
+          return next;
+      });
+  };
 
   useEffect(() => {
     // Debuggers
@@ -137,7 +162,9 @@ function App() {
   };
 
   const handleSetupComplete = (name: string, gender: '男'|'女', selectedTags: string[], starterId?: string) => {
-      const umaKeys = ['优秀素质', '东海帝王', '米浴', '北部玄驹', '无声铃鹿', '爱丽数码', '特别周'];
+      // Updated: Added '爱丽数码' to starter pool
+      const umaKeys = ['优秀素质', '东海帝王', '米浴', '北部玄驹', '无声铃鹿', '爱丽数码'];
+      // If starterId is provided (Dev Mode), use it. Otherwise pick random.
       const chosenUmaKey = starterId || umaKeys[Math.floor(Math.random() * umaKeys.length)];
 
       // --- Logic for '变化万千' Trait ---
@@ -366,10 +393,17 @@ function App() {
         const targetId = nextQueue.shift();
         newState.currentTurnQueue = nextQueue;
         
-        if (targetId) return triggerCharacterEvent(newState, targetId);
+        if (targetId) {
+             if (llmConfig.enabled) {
+                 newState.isLLMGenerating = true;
+                 newState.llmTargetId = targetId;
+                 return newState;
+             }
+             return triggerCharacterEvent(newState, targetId);
+        }
         return newState;
     });
-  }, []);
+  }, [llmConfig.enabled]);
 
   const restartGame = useCallback(() => setGameState(createInitialState()), []);
 
@@ -414,6 +448,25 @@ function App() {
 
   const toggleAuto = () => setGameState(prev => ({ ...prev, isAuto: !prev.isAuto }));
 
+  useEffect(() => {
+    if (gameState.isLLMGenerating && gameState.llmTargetId && !gameState.llmGeneratedEvent) {
+        const targetChar = gameState.characters.find(c => c.instanceId === gameState.llmTargetId);
+        if (targetChar) {
+            generateLLMEvent(llmConfig, targetChar, gameState.logs).then(event => {
+                if (event) {
+                    setGameState(prev => ({ ...prev, llmGeneratedEvent: event }));
+                } else {
+                    // Fallback to normal if LLM fails
+                    setGameState(prev => {
+                       const st = { ...prev, isLLMGenerating: false, llmTargetId: undefined };
+                       return triggerCharacterEvent(st, targetChar.instanceId);
+                    });
+                }
+            });
+        }
+    }
+  }, [gameState.isLLMGenerating, gameState.llmTargetId, gameState.llmGeneratedEvent, gameState.characters, gameState.logs, llmConfig]);
+
   if (gameState.gamePhase === 'setup') return <SetupScreen onComplete={handleSetupComplete} />;
 
   const currentPendingEvent = gameState.pendingEvents[0];
@@ -457,9 +510,12 @@ function App() {
              </div>
              <div 
                 className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-mono select-none ${canOpenDevConsole ? 'cursor-pointer hover:text-green-500 active:scale-90 transition-transform' : ''}`}
-                onClick={() => canOpenDevConsole && setIsDevConsoleOpen(true)}
+                onClick={() => {
+                    if (canOpenDevConsole) setIsDevConsoleOpen(true);
+                    handleTurnCounterClick();
+                }}
              >
-                0.2.260307a
+                0.2.260104f
              </div>
         </div>
 
@@ -475,9 +531,12 @@ function App() {
                 <h1 className="text-xl font-bold text-gray-800">怪文书模拟器</h1>
                 <span 
                     className={`text-xs text-gray-400 font-mono select-none ${canOpenDevConsole ? 'cursor-pointer hover:text-green-500 hover:underline transition-colors' : ''}`}
-                    onClick={() => canOpenDevConsole && setIsDevConsoleOpen(true)}
+                    onClick={() => {
+                        if (canOpenDevConsole) setIsDevConsoleOpen(true);
+                        handleTurnCounterClick();
+                    }}
                 >
-                    0.2.260307a
+                    0.2.260104f
                 </span>
             </div>
 
@@ -530,6 +589,39 @@ function App() {
             isOpen={isDevConsoleOpen && canOpenDevConsole} 
             onClose={() => setIsDevConsoleOpen(false)} 
             onExecute={handleDevExecute} 
+        />
+        
+        <LLMConfigPanel 
+            isOpen={showLLMConfig}
+            config={llmConfig}
+            onClose={() => setShowLLMConfig(false)}
+            onSave={handleSaveLLMConfig}
+        />
+        
+        <LLMPreviewModal 
+            isOpen={!!gameState.isLLMGenerating}
+            isLoading={!gameState.llmGeneratedEvent}
+            event={gameState.llmGeneratedEvent}
+            onConfirm={() => {
+                if (!gameState.llmGeneratedEvent || !gameState.llmTargetId) return;
+                setGameState(prev => {
+                    const st = { ...prev, isLLMGenerating: false };
+                    const e = st.llmGeneratedEvent!;
+                    st.llmGeneratedEvent = undefined;
+                    return processEvent(st, e, st.llmTargetId!);
+                });
+            }}
+            onRedo={() => {
+                setGameState(prev => ({ ...prev, llmGeneratedEvent: undefined }));
+                // It will automatically trigger generation again due to the effect since isLLMGenerating is still true
+            }}
+            onCancel={() => {
+                if (!gameState.llmTargetId) return;
+                setGameState(prev => {
+                    const st = { ...prev, isLLMGenerating: false, llmGeneratedEvent: undefined };
+                    return triggerCharacterEvent(st, st.llmTargetId!);
+                });
+            }}
         />
     </div>
   );
