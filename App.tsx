@@ -602,13 +602,19 @@ function App() {
             isOpen={!!gameState.isLLMGenerating}
             isLoading={!gameState.llmGeneratedEvent}
             event={gameState.llmGeneratedEvent}
-            onConfirm={() => {
-                if (!gameState.llmGeneratedEvent || !gameState.llmTargetId) return;
+            onRegenerateOptions={async (currentEvent) => {
+                if (!gameState.llmTargetId) return [];
+                const targetChar = gameState.characters.find(c => c.instanceId === gameState.llmTargetId);
+                if (!targetChar) return [];
+                const { regenerateLLMOptions } = await import('./services/llm');
+                return await regenerateLLMOptions(llmConfig, targetChar, currentEvent);
+            }}
+            onConfirm={(editedEvent) => {
+                if (!editedEvent || !gameState.llmTargetId) return;
                 setGameState(prev => {
                     const st = { ...prev, isLLMGenerating: false };
-                    const e = st.llmGeneratedEvent!;
                     st.llmGeneratedEvent = undefined;
-                    return processEvent(st, e, st.llmTargetId!);
+                    return processEvent(st, editedEvent, st.llmTargetId!);
                 });
             }}
             onRedo={() => {

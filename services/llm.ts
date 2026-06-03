@@ -55,7 +55,7 @@ ${JSON.stringify([...EVENTS].sort(() => 0.5 - Math.random()).slice(0, 10), null,
     const userPrompt = `需要为当前角色生成一个新的突发事件：
 【角色名称】：${character.名称}
 【角色定位】：${charRole}
-【当前核心属性】：体力 ${character.通用属性?.体力 || 0}, 心情 ${character.通用属性?.心情 || 0}, 魅力 ${character.通用属性?.魅力 || 0}
+${character.背景档案 ? `【角色背景设定】：${character.背景档案}\n` : ''}【当前核心属性】：体力 ${character.通用属性?.体力 || 0}, 心情 ${character.通用属性?.心情 || 0}, 魅力 ${character.通用属性?.魅力 || 0}
 【拥有标定特征】：${character.标签组.map(t => t.templateId).join('、')}
 
 【该角色近期经历的历史记录】：
@@ -126,5 +126,89 @@ ${charLogs.length > 0 ? charLogs.map(l => `第 ${l.turn} 回合: ${l.text}`).joi
     } catch (e) {
         console.error('Failed to generate LLM event:', e);
         return null;
+    }
+};
+
+export const regenerateLLMOptions = async (
+    config: LLMConfig,
+    character: RuntimeCharacter,
+    existingEvent: GameEvent
+): Promise<GameEvent['选项组']> => {
+    const systemPrompt = `你是一个专业的游戏文案和数值策划。请基于下面已经写好的事件文本，重新生成一组新的事件选项。
+你必须且只能输出一段解析无误的纯 JSON 格式代码。严禁包含任何 Markdown 格式（如\`\`\`json）、严禁包含思考过程。
+
+请严格按照以下 JSON Schema 输出：
+{
+  "选项组": [
+     { "显示文本": "玩家选择按钮上的文字", "操作指令": "具体的指令集" }
+  ]
+}
+
+支持的操作指令语法（如有多个指令请使用回车换行分隔）：
+- 属性变更 属性名 数值 (例如: 属性变更 体力 -10)
+- 关系变更(类型, 目标A, 目标B, 数值)
+- 添加标签 标签ID
+- 移除标签 标签ID
+`;
+
+    const userPrompt = `为以下事件重新生成 2 到 3 个选项：
+【角色名称】：${character.名称}
+${character.背景档案 ? `【角色背景设定】：${character.背景档案}\n` : ''}【事件标题】：${existingEvent.标题}
+【事件正文】：${existingEvent.正文}
+
+注意：请直接并且仅输出 JSON，包含一个 "选项组" 数组，绝对不要输出任何其他思考或解释文本。`;
+
+    let fetchUrl = config.url.trim().replace(/\/$/, '');
+    if (fetchUrl === 'https://api.deepseek.com') {
+        fetchUrl = 'https://api.deepseek.com/chat/completions';
+    } else if (fetchUrl.endsWith('/v1')) {
+        fetchUrl += '/chat/completions';
+    }
+
+    try {
+        const res = await fetch(fetchUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${config.key}`
+            },
+            body: JSON.stringify({
+                model: config.model || 'gpt-3.5-turbo',
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userPrompt }
+                ],
+                temperature: 0.7
+            })
+        });
+
+        if (!res.ok) {
+            console.error('LLM API Error:', await res.text());
+            return [];
+        }
+
+        const data = await res.json();
+        let content = data.choices[0].message.content.trim();
+        content = content.replace(/<think>[\s\S]*?<\/think>/, '').trim();
+
+        if (content.startsWith('\`\`\`json')) {
+            content = content.replace(/^\`\`\`json\n?/, '').replace(/\n?\`\`\`$/, '');
+        } else if (content.startsWith('\`\`\`')) {
+            content = content.replace(/^\`\`\`\n?/, '').replace(/\n?\`\`\`$/, '');
+        }
+        content = content.trim();
+
+        if (!content.startsWith('{')) {
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                content = jsonMatch[0];
+            }
+        }
+        
+        const parsed = JSON.parse(content);
+        return parsed.选项组 || [];
+    } catch (e) {
+        console.error('Failed to regenerate options:', e);
+        return [];
     }
 };

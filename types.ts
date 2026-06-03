@@ -80,6 +80,7 @@ export interface CharacterTemplate {
   性别: '男' | '女';
   初始标签: string[];
   初始标签附带对象?: Record<string, string[]>; // 新增：TagID -> TargetTemplateIDs (e.g. {'宿敌': ['东海帝王']})
+  背景档案?: string; // Character background/lore
   通用属性: Attributes;
   竞赛属性: RaceAttributes;
   适性?: Aptitudes; 
@@ -93,6 +94,7 @@ export interface RuntimeCharacter {
   templateId: string;
   名称: string;
   性别: '男' | '女';
+  背景档案?: string;
   通用属性: Attributes;
   竞赛属性: RaceAttributes;
   适性?: Aptitudes; 

@@ -21,6 +21,7 @@ export const createRuntimeCharacter = (template: CharacterTemplate, instanceId: 
     templateId: template.id,
     名称: overrideName || template.名称,
     性别: overrideGender || template.性别,
+    背景档案: template.背景档案,
     通用属性: { ...template.通用属性 },
     竞赛属性: { ...template.竞赛属性 },
     适性: template.适性 ? { ...template.适性 } : undefined,
